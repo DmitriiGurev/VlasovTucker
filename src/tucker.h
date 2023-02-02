@@ -9,7 +9,7 @@ public:
 	Tucker();
 	// Zero tensor with given ranks
 	Tucker(int n0, int n1, int n2, int r0, int r1, int r2);
-	// Compress a tensor with given accuracy
+	// Compress a tensor with a given accuracy
 	Tucker(const Eigen::Tensor<double, 3>& tensor, double eps = 1e-14, int rmax = 1e+6);
 	// Create a rank-one tensor from given factors
 	Tucker(const std::vector<Eigen::VectorXd>& u);

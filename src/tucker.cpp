@@ -9,7 +9,6 @@
 using namespace Eigen;
 using std::vector;
 
-//---------------------------------------------------------------------------------------
 Tucker::Tucker() :
     _n({ 0, 0, 0 }), _r({ 0,0,0 })
 {}
@@ -26,7 +25,7 @@ Tucker::Tucker(int n0, int n1, int n2, int r0, int r1, int r2) :
     _core.setZero();
 }
 
-// Compress a tensor with given accuracy
+// Compress a tensor with a given accuracy
 Tucker::Tucker(const Tensor<double, 3>& tensor, double eps, int rmax)
 {
     _n = { tensor.dimension(0), tensor.dimension(1), tensor.dimension(2) };
@@ -53,7 +52,6 @@ Tucker::Tucker(const std::vector<Eigen::VectorXd>& u)
     _core.setConstant(1);
 }
 
-//---------------------------------------------------------------------------------------
 vector<long long> Tucker::Dimensions() const
 {
     return _n;
@@ -96,7 +94,6 @@ Tensor<double, 3> Tucker::Reconstructed() const
     return Folding(3, 3, 3, _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(), 0);
 }
 
-//---------------------------------------------------------------------------------------
 double Tucker::sum() const
 {
     double sum = 0;
@@ -130,7 +127,6 @@ double Tucker::norm() const
     return sqrt(sumSq);
 }
 
-//---------------------------------------------------------------------------------------
 void Tucker::Recompress(double eps, int rmax)
 {
     vector<MatrixXd> Q(3);
@@ -159,7 +155,6 @@ void Tucker::Recompress(double eps, int rmax)
     _r = { _u[0].cols(), _u[1].cols(), _u[2].cols() };
 }
 
-//---------------------------------------------------------------------------------------
 std::ostream& operator <<(std::ostream& out, const Tucker& tucker)
 {
     out << "This is a 3D tensor in the Tucker format with \n";
@@ -323,7 +318,6 @@ Tucker Reflection(Tucker t, int axis)
     return t;
 };                
 
-//---------------------------------------------------------------------------------------
 template<typename Scalar, int rank, typename sizeType>
 Map<const Matrix<Scalar, Dynamic, Dynamic>>
 Tucker::TensorToMatrix(const Tensor<Scalar, rank>& tensor, const sizeType rows, const sizeType cols) const

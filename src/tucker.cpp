@@ -91,7 +91,7 @@ double Tucker::At(int i0, int i1, int i2) const
 
 Tensor<double, 3> Tucker::Reconstructed() const
 {
-    return Folding(3, 3, 3, _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(), 0);
+    return Folding(_n[0], _n[1], _n[2], _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(), 0);
 }
 
 double Tucker::sum() const
@@ -143,7 +143,7 @@ void Tucker::Recompress(double eps, int rmax)
     }
 
     MatrixXd A0 = R[0] * Unfolding(_core, 0) * kroneckerProduct(R[1], R[2]).transpose();
-    Tensor<double, 3> aux = Folding(3, 3, 3, A0, 0);
+    Tensor<double, 3> aux = Folding(_n[0], _n[1], _n[2], A0, 0);
 
     Tucker auxTucker(aux, eps, rmax);
 

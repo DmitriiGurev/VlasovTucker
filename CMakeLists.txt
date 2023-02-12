@@ -4,9 +4,9 @@ cmake_minimum_required( VERSION 3.10 )
 
 project( vlasov-t )
 
-include_directories( ./include ./src ./libs/MshIO-main/include ./include/eigen-3.4.0 )
+include_directories( ./include ./src ./include/eigen-3.4.0 ./libs/MshIO-main/include )
 
-add_executable( tucker_test ./src/tucker.cpp ./src/tucker_test.cpp )
+add_executable( tucker_test ./src/tucker.cpp ./test/tucker_test.cpp )
 
 # add_subdirectory( ./libs/MshIO-main )
 # target_link_libraries( vlasov_t mshio )

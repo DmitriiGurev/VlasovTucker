@@ -10,12 +10,15 @@ using namespace Eigen;
 using std::vector;
 
 Tucker::Tucker() :
-    _n({ 0, 0, 0 }), _r({ 0,0,0 })
+    _n({0, 0, 0}),
+    _r({0, 0, 0})
 {}
 
 // Zero tensor with given ranks
-Tucker::Tucker(int n0, int n1, int n2, int r0, int r1, int r2) :
-    _n({ n0, n1, n2 }), _r({ r0, r1, r2 })
+Tucker::Tucker(int n0, int n1, int n2,
+               int r0, int r1, int r2) :
+    _n({n0, n1, n2}),
+    _r({r0, r1, r2})
 {
     _u[0] = MatrixXd::Zero(n0, r0);
     _u[1] = MatrixXd::Zero(n1, r1);
@@ -26,13 +29,19 @@ Tucker::Tucker(int n0, int n1, int n2, int r0, int r1, int r2) :
 }
 
 // Compress a tensor with a given accuracy
-Tucker::Tucker(const Tensor<double, 3>& tensor, double eps, int rmax)
+Tucker::Tucker(const Tensor<double, 3>& tensor,
+               double eps,
+               int rmax)
 {
-    _n = { tensor.dimension(0), tensor.dimension(1), tensor.dimension(2) };
+    _n = {(int)tensor.dimension(0),
+          (int)tensor.dimension(1),
+          (int)tensor.dimension(2)};
 
     ComputeU(tensor, _u, eps, rmax);
 
-    _r = { _u[0].cols(), _u[1].cols(), _u[2].cols() };
+    _r = {(int)_u[0].cols(),
+          (int)_u[1].cols(),
+          (int)_u[2].cols()};
 
     MatrixXd S0 = _u[0].transpose() * Unfolding(tensor, 0) * kroneckerProduct(_u[1], _u[2]);
     _core = Folding(_r[0], _r[1], _r[2], S0, 0);
@@ -45,19 +54,21 @@ Tucker::Tucker(const std::vector<Eigen::VectorXd>& u)
     _u[1] = MatrixXd(u[1]);
     _u[2] = MatrixXd(u[2]);
 
-    _n = { u[0].size(), u[1].size(), u[2].size() };
-    _r = { 1,1,1 };
+    _n = {(int)u[0].size(),
+          (int)u[1].size(),
+          (int)u[2].size()};
+    _r = {1, 1, 1};
 
     _core = Tensor<double, 3>(1, 1, 1);
     _core.setConstant(1);
 }
 
-vector<long long> Tucker::Dimensions() const
+vector<int> Tucker::Dimensions() const
 {
     return _n;
 }
 
-vector<long long> Tucker::Ranks() const
+vector<int> Tucker::Ranks() const
 {
     return _r;
 }
@@ -91,7 +102,9 @@ double Tucker::At(int i0, int i1, int i2) const
 
 Tensor<double, 3> Tucker::Reconstructed() const
 {
-    return Folding(_n[0], _n[1], _n[2], _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(), 0);
+    return Folding(_n[0], _n[1], _n[2],
+                   _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(),
+                   0);
 }
 
 double Tucker::sum() const
@@ -133,7 +146,9 @@ void Tucker::Recompress(double eps, int rmax)
     vector<MatrixXd> R(3);
     for (int i : {0, 1, 2})
     {
-        MatrixXd thinQ(_u[i].rows(), _u[i].cols()), q(_u[i].rows(), _u[i].rows());
+        MatrixXd thinQ(_u[i].rows(), _u[i].cols());
+        MatrixXd q(_u[i].rows(), _u[i].rows());
+
         HouseholderQR<MatrixXd> householderQR(_u[i]);
         q = householderQR.householderQ();
         thinQ.setIdentity();
@@ -152,7 +167,9 @@ void Tucker::Recompress(double eps, int rmax)
     for (int i : {0, 1, 2})
         _u[i] = Q[i] * auxTucker.U()[i];
 
-    _r = { _u[0].cols(), _u[1].cols(), _u[2].cols() };
+    _r = {(int)_u[0].cols(),
+          (int)_u[1].cols(),
+          (int)_u[2].cols()};
 }
 
 std::ostream& operator <<(std::ostream& out, const Tucker& tucker)
@@ -169,7 +186,12 @@ Tucker operator +(const Tucker& t1, const Tucker& t2)
     if (t1.Dimensions() != t2.Dimensions())
         throw std::invalid_argument("Different shapes in sum");
 
-    Tucker result(t1._n[0], t1._n[1], t1._n[2], t1._r[0] + t2._r[0], t1._r[1] + t2._r[1], t1._r[2] + t2._r[2]);
+    Tucker result(t1._n[0],
+                  t1._n[1],
+                  t1._n[2],
+                  t1._r[0] + t2._r[0],
+                  t1._r[1] + t2._r[1],
+                  t1._r[2] + t2._r[2]);
 
     for (int k0 = 0; k0 < t1._r[0] + t2._r[0]; k0++)
     {
@@ -177,10 +199,11 @@ Tucker operator +(const Tucker& t1, const Tucker& t2)
         {
             for (int k2 = 0; k2 < t1._r[2] + t2._r[2]; k2++)
             {
-                if (k0 < t1._r[0] &&
+                if (k0 < t1._r[0] && 
                     k1 < t1._r[1] &&
                     k2 < t1._r[2])
                     result._core(k0, k1, k2) = t1._core(k0, k1, k2);
+                    
                 if (k0 >= t1._r[0] &&
                     k1 >= t1._r[1] &&
                     k2 >= t1._r[2])
@@ -195,7 +218,6 @@ Tucker operator +(const Tucker& t1, const Tucker& t2)
         result._u[i].block(0, 0, t1._n[i], t1._r[i]) = t1._u[i];
         result._u[i].block(0, t1._r[i], t1._n[i], t2._r[i]) = t2._u[i];
     }
-
     return result;
 }
 
@@ -209,7 +231,12 @@ Tucker operator *(const Tucker& t1, const Tucker& t2)
     if (t1.Dimensions() != t2.Dimensions())
         throw std::invalid_argument("Different shapes in mult");
 
-    Tucker result(t1._n[0], t1._n[1], t1._n[2], t1._r[0] * t2._r[0], t1._r[1] * t2._r[1], t1._r[2] * t2._r[2]);
+    Tucker result(t1._n[0],
+                  t1._n[1],
+                  t1._n[2],
+                  t1._r[0] * t2._r[0],
+                  t1._r[1] * t2._r[1],
+                  t1._r[2] * t2._r[2]);
 
     int kA0, kA1, kA2;
     int kB0, kB1, kB2;
@@ -239,7 +266,6 @@ Tucker operator *(const Tucker& t1, const Tucker& t2)
             result._u[i].row(r) = kroneckerProduct(t1._u[i].row(r), t2._u[i].row(r));
         }
     }
-
     return result;
 }
 
@@ -266,14 +292,12 @@ Tucker operator *(const Tucker& t, const double alpha)
 
 Tucker operator /(Tucker t1, const Tucker& t2)
 {
-    if(t2.Ranks() != vector<long long>{1, 1, 1})
+    if(t2.Ranks() != vector<int>{1, 1, 1})
         throw std::invalid_argument("Invalid ranks in divide");
 
     if (t2.Dimensions() != t1._n)
         throw std::invalid_argument("Invalid dimensions in divide");
 
-
-    // ???????????????????
     for (int i = 0; i < t1._r[0]; i++)
     {
         for (int j = 0; j < t1._r[1]; j++)
@@ -286,19 +310,13 @@ Tucker operator /(Tucker t1, const Tucker& t2)
     }
 
     for (int i = 0; i < t1._n[0]; i++)
-    {
         t1._u[0].row(i) /= t2._u[0](i);
-    }
 
     for (int j = 0; j < t1._n[1]; j++)
-    {
         t1._u[1].row(j) /= t2._u[1](j);
-    }
 
     for (int k = 0; k < t1._n[2]; k++)
-    {
         t1._u[2].row(k) /= t2._u[2](k);
-    }
 
     return t1;
 }
@@ -320,7 +338,9 @@ Tucker Reflection(Tucker t, int axis)
 
 template<typename Scalar, int rank, typename sizeType>
 Map<const Matrix<Scalar, Dynamic, Dynamic>>
-Tucker::TensorToMatrix(const Tensor<Scalar, rank>& tensor, const sizeType rows, const sizeType cols) const
+Tucker::TensorToMatrix(const Tensor<Scalar, rank>& tensor,
+                       const sizeType rows,
+                       const sizeType cols) const
 {
     return Map<const Matrix<Scalar, Dynamic, Dynamic>>(tensor.data(), rows, cols);
 }
@@ -342,7 +362,9 @@ MatrixXd Tucker::Unfolding(const Tensor<double, 3>& tensor, int index) const
         {
             for (int i = 0; i < I2; i++)
             {
-                Tensor<double, 3> thread = tensor.slice(array<Index, 3> { 0, j, i }, array<Index, 3> { I0, 1, 1 });
+                Tensor<double, 3> thread = tensor.slice(array<Index, 3>{0, j, i},
+                                                        array<Index, 3>{I0, 1, 1});
+
                 unfolding.block(0, i + j * I2, I0, 1) = TensorToMatrix(thread, I0, 1);
             }
         }
@@ -354,7 +376,9 @@ MatrixXd Tucker::Unfolding(const Tensor<double, 3>& tensor, int index) const
         {
             for (int i = 0; i < I0; i++)
             {
-                Tensor<double, 3> thread = tensor.slice(array<Index, 3> { i, 0, j }, array<Index, 3> { 1, I1, 1 });
+                Tensor<double, 3> thread = tensor.slice(array<Index, 3>{i, 0, j},
+                                                        array<Index, 3>{1, I1, 1});
+
                 unfolding.block(0, i + j * I0, I1, 1) = TensorToMatrix(thread, I1, 1);
             }
         }
@@ -366,7 +390,9 @@ MatrixXd Tucker::Unfolding(const Tensor<double, 3>& tensor, int index) const
         {
             for (int i = 0; i < I1; i++)
             {
-                Tensor<double, 3> thread = tensor.slice(array<Index, 3> { j, i, 0 }, array<Index, 3> { 1, 1, I2 });
+                Tensor<double, 3> thread = tensor.slice(array<Index, 3>{j, i, 0},
+                                                        array<Index, 3>{1, 1, I2});
+                                                        
                 unfolding.block(0, i + j * I1, I2, 1) = TensorToMatrix(thread, I2, 1);
             }
         }
@@ -375,7 +401,9 @@ MatrixXd Tucker::Unfolding(const Tensor<double, 3>& tensor, int index) const
     return unfolding;
 }
 
-Tensor<double, 3> Tucker::Folding(int I0, int I1, int I2, const MatrixXd& unfolding, int index) const
+Tensor<double, 3> Tucker::Folding(int I0, int I1, int I2,
+                                  const MatrixXd& unfolding,
+                                  int index) const
 {
     Tensor<double, 3> folding(I0, I1, I2);
 
@@ -421,7 +449,10 @@ Tensor<double, 3> Tucker::Folding(int I0, int I1, int I2, const MatrixXd& unfold
     return folding;
 }
 
-void Tucker::ComputeU(const Tensor<double, 3>& tensor, vector<MatrixXd>& u, double eps, int rmax)
+void Tucker::ComputeU(const Tensor<double, 3>& tensor,
+                      vector<MatrixXd>& u,
+                      double eps,
+                      int rmax)
 {
     for (int i : {0, 1, 2})
     {
@@ -429,7 +460,7 @@ void Tucker::ComputeU(const Tensor<double, 3>& tensor, vector<MatrixXd>& u, doub
         VectorXd SV = SVD.singularValues();
         u[i] = SVD.matrixU();
 
-        double threshold = eps * SV.norm() / sqrt(3); // Here was SV[0]
+        double threshold = eps * SV.norm() / sqrt(3);
 
         vector<int> colsToKeep;
         int r = 0;

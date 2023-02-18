@@ -23,27 +23,27 @@ public:
     std::vector<double> data;
 
 public:
-    Point operator-(const Point& p)
+    Point operator-(const Point& p) const
     {
         return Point(x - p.x, y - p.y, z - p.z);
     }
 
-    Point operator/(double d)
+    Point operator/(double d) const
     {
         return Point(x / d, y / d, z / d);
     }
 
-    double Abs()
+    double Abs() const
     {
         return sqrt(x * x + y * y + z * z);
     }
 
-    double DotProduct(const Point& p)
+    double DotProduct(const Point& p) const
     {
         return x * p.x + y * p.y + z * p.z;
     }
 
-    Point CrossProduct(const Point& p)
+    Point CrossProduct(const Point& p) const
     {
         return {y * p.z - z * p.y,
                 z * p.x - x * p.z,

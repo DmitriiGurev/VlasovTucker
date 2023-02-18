@@ -38,6 +38,18 @@ public:
         return sqrt(x * x + y * y + z * z);
     }
 
+    double DotProduct(const Point& p)
+    {
+        return x * p.x + y * p.y + z * p.z;
+    }
+
+    Point CrossProduct(const Point& p)
+    {
+        return {y * p.z - z * p.y,
+                z * p.x - x * p.z,
+                x * p.y - y * p.x};
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const Point& p);
 };
 
@@ -70,6 +82,8 @@ public:
                   a.x * b.y - a.y * b.x};
 
         normal = normal / normal.Abs();
+
+        area = a.CrossProduct(b).Abs() / 2.0;
     }
 
 public:
@@ -80,6 +94,7 @@ public:
     // The face-index in the adjacent tet
     int adjTetInd;
 
+    double area;
     Point centroid;
     Point normal;
 

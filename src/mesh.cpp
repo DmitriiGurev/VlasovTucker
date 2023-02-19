@@ -30,7 +30,7 @@ Mesh::Mesh(string fileName)
         Point* point = new Point({spec.nodes.entity_blocks[0].data[3 * i],
                                   spec.nodes.entity_blocks[0].data[3 * i + 1],
                                   spec.nodes.entity_blocks[0].data[3 * i + 2]});
-
+        point->index = points.size();
         points.push_back(point);
     }
 
@@ -51,7 +51,10 @@ Mesh::Mesh(string fileName)
                 Point* p3 = points[i3];
 
                 Tet* tet = new Tet({p0, p1, p2, p3});  
+                tet->index = tets.size();
+
                 assert(tet->Orientation() <= 0);
+
                 tets.push_back(tet);
 
                 tet->faces[0] = new Face({p1, p2, p3});
@@ -64,6 +67,7 @@ Mesh::Mesh(string fileName)
                     Face* face = tet->faces[j];
                     face->adjTet = tet;
                     face->adjTetInd = j;
+                    face->index = faces.size();
                     faces.push_back(face);  
                     _pointsToFaces[{face->points[0],
                                     face->points[1],
@@ -102,12 +106,6 @@ Mesh::Mesh(string fileName)
                 face->bcTypes = entityToPhysGroups[entityBlock.entity_tag];
             }
         }
-    }
-
-    for (auto surf : spec.entities.surfaces)
-    {
-        cout << surf.tag << "\n";
-        cout << surf.physical_group_tags[0] << "\n";
     }
 }
 

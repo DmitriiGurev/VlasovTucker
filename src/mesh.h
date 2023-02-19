@@ -20,7 +20,7 @@ public:
     double y;
     double z;
 
-    std::vector<double> data;
+    int index;
 
 public:
     Point operator-(const Point& p) const
@@ -102,6 +102,8 @@ public:
 
     std::vector<std::string> bcTypes;
 
+    int index;
+
 public:
     friend std::ostream& operator<<(std::ostream& os, const Face& f);
 };
@@ -117,6 +119,8 @@ public:
         centroid = {(p0->x + p1->x + p2->x + p3->x) / 4.0,
                     (p0->y + p1->y + p2->y + p3->y) / 4.0,
                     (p0->z + p1->z + p2->z + p3->z) / 4.0};
+
+        volume = std::abs(Orientation()) / 6.0;
     }
 
     double Orientation() const;
@@ -127,6 +131,9 @@ public:
     std::array<Tet*, 4>   adjTets = {nullptr, nullptr, nullptr, nullptr};
 
     Point centroid;
+    double volume;
+
+    int index;
 
 public:
     friend std::ostream& operator<<(std::ostream& os, const Tet& t);

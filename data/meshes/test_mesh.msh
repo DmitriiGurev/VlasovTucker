@@ -3,8 +3,8 @@ $MeshFormat
 $EndMeshFormat
 $PhysicalNames
 3
-2 14 "Dirichlet"
-2 15 "Neumann"
+2 14 "Poisson: Dirichlet"
+2 15 "Poisson: Dirichlet"
 3 13 "Volume"
 $EndPhysicalNames
 $Nodes

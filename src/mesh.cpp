@@ -69,26 +69,13 @@ Mesh::Mesh(string fileName)
                     face->adjTetInd = j;
                     face->index = faces.size();
                     faces.push_back(face);  
-                    _pointsToFaces[{face->points[0],
-                                    face->points[1],
-                                    face->points[2]}] = face;
+                    _pointsToFaces[{*face->points[0],
+                                    *face->points[1],
+                                    *face->points[2]}] = face;
                 }
             }
         }
     }
-
-    for(auto face : faces)
-    {
-        Point* p0 = face->points[0];
-        Point* p1 = face->points[1];
-        Point* p2 = face->points[2];
-
-        if (_pointsToFaces.count({p0, p2, p1}) > 0)
-        {
-            Face* invFace = _pointsToFaces[{p0, p2, p1}];
-            face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
-        }
-    }       
 
     // Boundary faces
     for (auto entityBlock : spec.elements.entity_blocks)
@@ -101,12 +88,46 @@ Mesh::Mesh(string fileName)
                 int i1 = entityBlock.data[4 * i + 2] - 1;
                 int i2 = entityBlock.data[4 * i + 3] - 1;
        
-                Face* face = _pointsToFaces[{points[i0], points[i1], points[i2]}];
+                Face* face = _pointsToFaces[{*points[i0], *points[i1], *points[i2]}];
                 face->type = Boundary;
                 face->bcTypes = entityToPhysGroups[entityBlock.entity_tag];
             }
         }
     }
+
+    for(auto face : faces)
+    {
+        Point* p0 = face->points[0];
+        Point* p1 = face->points[1];
+        Point* p2 = face->points[2];
+
+        if (_pointsToFaces.count({*p0, *p2, *p1}) > 0)
+        {
+            Face* invFace = _pointsToFaces[{*p0, *p2, *p1}];
+            face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
+        }
+
+        if (face->type == Boundary)
+        {
+            if (find(face->bcTypes.begin(),
+                    face->bcTypes.end(),
+                    "Boundary: Periodic") !=
+                    face->bcTypes.end())
+            {
+                for (Point t : {Point(1, 0, 0),
+                                Point(0, 1, 0),
+                                Point(0, 0, 1),
+                                Point(-1, 0, 0),
+                                Point(0, -1, 0),
+                                Point(0, 0, -1)})
+                    if (_pointsToFaces.count({*p0 + t, *p2 + t, *p1 + t}) > 0)
+                    {
+                        Face* invFace = _pointsToFaces[{*p0 + t, *p2 + t, *p1 + t}];
+                        face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
+                    }
+            }
+        }
+    }       
 }
 
 Mesh::~Mesh()
@@ -119,6 +140,8 @@ Mesh::~Mesh()
 
     for (auto tet : tets)
         delete tet;
+
+    cout << "~Mesh\n";
 }
 
 double Tet::Orientation() const

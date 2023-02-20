@@ -23,6 +23,11 @@ public:
     int index;
 
 public:
+    Point operator+(const Point& p) const
+    {
+        return Point(x + p.x, y + p.y, z + p.z);
+    }
+
     Point operator-(const Point& p) const
     {
         return Point(x - p.x, y - p.y, z - p.z);
@@ -31,6 +36,13 @@ public:
     Point operator/(double d) const
     {
         return Point(x / d, y / d, z / d);
+    }
+
+    bool operator==(const Point& p) const
+    {
+        return x == p.x &&
+               y == p.y &&
+               z == p.z;
     }
 
     double Abs() const
@@ -70,9 +82,11 @@ public:
     Face(Point* p0, Point* p1, Point* p2) :
         points({p0, p1, p2})
     {
-        centroid = {(p0->x + p1->x + p2->x) / 3.0,
-                    (p0->y + p1->y + p2->y) / 3.0,
-                    (p0->z + p1->z + p2->z) / 3.0};
+        // centroid = {(p0->x + p1->x + p2->x) / 3.0,
+        //             (p0->y + p1->y + p2->y) / 3.0,
+        //             (p0->z + p1->z + p2->z) / 3.0};
+
+        centroid = (*p0 + *p1 + *p2) / 3.0;        
 
         Point a = *p1 - *p0;
         Point b = *p2 - *p0;
@@ -116,9 +130,11 @@ public:
     Tet(Point* p0, Point* p1, Point* p2, Point* p3) :
         points({p0, p1, p2, p3})
     {
-        centroid = {(p0->x + p1->x + p2->x + p3->x) / 4.0,
-                    (p0->y + p1->y + p2->y + p3->y) / 4.0,
-                    (p0->z + p1->z + p2->z + p3->z) / 4.0};
+        // centroid = {(p0->x + p1->x + p2->x + p3->x) / 4.0,
+        //             (p0->y + p1->y + p2->y + p3->y) / 4.0,
+        //             (p0->z + p1->z + p2->z + p3->z) / 4.0};
+
+        centroid = (*p0 + *p1 + *p2 + *p3) / 4.0;
 
         volume = std::abs(Orientation()) / 6.0;
     }
@@ -154,9 +170,9 @@ public:
 private:
     struct KeyTriple
     {
-        Point* p0;
-        Point* p1;
-        Point* p2;
+        Point p0;
+        Point p1;
+        Point p2;
 
         // All cyclic permutations are equivalent
         bool operator==(const KeyTriple& keyTriple) const
@@ -177,11 +193,59 @@ private:
     {
         std::size_t operator()(const KeyTriple& keyTriple) const
         {
-            return std::hash<Point*>()(keyTriple.p0) & 
-                   std::hash<Point*>()(keyTriple.p1) & 
-                   std::hash<Point*>()(keyTriple.p2);
+            // Point circumcenter = (keyTriple.p0 + keyTriple.p1 + keyTriple.p2) / 3.0;
+            // return std::hash<double>()(circumcenter.x) &
+            //        std::hash<double>()(circumcenter.y) &
+            //        std::hash<double>()(circumcenter.z);
+
+            std::size_t hash0 = std::hash<double>()(keyTriple.p0.x) &
+                                std::hash<double>()(keyTriple.p0.y) &
+                                std::hash<double>()(keyTriple.p0.z);
+
+            std::size_t hash1 = std::hash<double>()(keyTriple.p1.x) &
+                                std::hash<double>()(keyTriple.p1.y) &
+                                std::hash<double>()(keyTriple.p1.z);
+             
+            std::size_t hash2 = std::hash<double>()(keyTriple.p2.x) &
+                                std::hash<double>()(keyTriple.p2.y) &
+                                std::hash<double>()(keyTriple.p2.z);    
+
+            return hash0 & hash1 & hash2;
         }
     };
 
     std::unordered_map<KeyTriple, Face*, HashTriple> _pointsToFaces;
+
+    // struct KeyTriplePtr
+    // {
+    //     Point* p0;
+    //     Point* p1;
+    //     Point* p2;
+    //
+    //     // All cyclic permutations are equivalent
+    //     bool operator==(const KeyTriplePtr& keyTriplePtr) const
+    //     {
+    //         return (p0 == keyTriplePtr.p0 &&
+    //                 p1 == keyTriplePtr.p1 &&
+    //                 p2 == keyTriplePtr.p2) ||
+    //                 (p0 == keyTriplePtr.p1 &&
+    //                 p1 == keyTriplePtr.p2 &&
+    //                 p2 == keyTriplePtr.p0) ||
+    //                 (p0 == keyTriplePtr.p2 &&
+    //                 p1 == keyTriplePtr.p0 &&
+    //                 p2 == keyTriplePtr.p1);
+    //     }
+    // };
+    //
+    // struct HashTriplePtr
+    // {
+    //     std::size_t operator()(const KeyTriplePtr& keyTriplePtr) const
+    //     {
+    //         return std::hash<Point*>()(keyTriplePtr.p0) & 
+    //                std::hash<Point*>()(keyTriplePtr.p1) & 
+    //                std::hash<Point*>()(keyTriplePtr.p2);
+    //     }
+    // };
+    //
+    // std::unordered_map<KeyTriplePtr, Face*, HashTriplePtr> _pointPtrsToFaces;
 };

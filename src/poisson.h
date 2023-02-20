@@ -26,7 +26,7 @@ private:
         NonBoundary,
         Neumann,
         Dirichlet,
-        // Periodic
+        Periodic
     };
 
     std::vector<BCType> _faceTypes = std::vector<BCType>(_mesh.faces.size());

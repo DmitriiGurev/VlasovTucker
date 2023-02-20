@@ -34,6 +34,14 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
             {
                 _faceTypes[i] = BCType::Neumann;
             }
+
+            if (find(_mesh.faces[i]->bcTypes.begin(),
+                        _mesh.faces[i]->bcTypes.end(),
+                        "Poisson: Periodic") !=
+                        _mesh.faces[i]->bcTypes.end())
+            {
+                _faceTypes[i] = BCType::Periodic;
+            }
         }
     }
 
@@ -54,6 +62,29 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
             {
                 Tet* adjTet = tet->adjTets[j];
                 Point d = adjTet->centroid - tet->centroid;
+
+                coeffs.push_back(T(
+                    i,
+                    adjTet->index,
+                    (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
+                    ));
+                
+                coeffs.push_back(T(
+                    i,
+                    i,
+                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
+                    ));
+            }
+            if (_faceTypes[face->index] == BCType::Periodic)
+            {
+                Tet* adjTet = tet->adjTets[j];
+                Point d = (adjTet->centroid - tet->centroid);
+
+                int k = 0;
+                while (adjTet->adjTets[k] != tet)
+                    k++;
+
+                d = d + face->centroid - adjTet->faces[k]->centroid;
 
                 coeffs.push_back(T(
                     i,

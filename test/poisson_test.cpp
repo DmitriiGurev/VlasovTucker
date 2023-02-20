@@ -8,18 +8,20 @@ using namespace std;
 
 int main()
 {
-    Mesh mesh("../data/meshes/test_mesh_fine.msh");
+    Mesh mesh("../data/meshes/test_mesh_periodic_fine.msh");
+    cout << "Done reading the mesh\n";
     cout << mesh.points.size() << endl;
     cout << mesh.tets.size() << endl;
     
     PoissonSolver solver(mesh);
+    cout << "Done initializing the solver\n";
 
     auto rhoFunc = [&](const Point& p)
     {
-        return eps0 * M_PI * M_PI * 3.0 * 
-               sin(p.x * M_PI) *
-               sin(p.y * M_PI) *
-               sin(p.z * M_PI);
+        return eps0 * 4 * M_PI * M_PI * 3.0 * 
+               sin(p.x * 2 * M_PI) *
+               sin(p.y * 2 * M_PI) *
+               sin(p.z * 2 * M_PI);
     };
 
     vector<double> rho(mesh.tets.size());
@@ -30,18 +32,18 @@ int main()
     vector<double> phi = solver.Solve(rho);
 
     double err = 0.0;
-    for (int i = 0; i < 500; i++)
+    for (int i = 0; i < mesh.tets.size(); i++)
     {
-        double analytical = sin(mesh.tets[i]->centroid.x * M_PI) * 
-                            sin(mesh.tets[i]->centroid.y * M_PI) * 
-                            sin(mesh.tets[i]->centroid.z * M_PI);
+        double analytical = sin(mesh.tets[i]->centroid.x * 2 * M_PI) * 
+                            sin(mesh.tets[i]->centroid.y * 2 * M_PI) * 
+                            sin(mesh.tets[i]->centroid.z * 2 * M_PI);
 
         double actual = phi[i];
-
         err += abs(analytical - actual);
     }
-    cout << err / 500 << "\n";
+    cout << err / mesh.tets.size() << "\n";
 
+//     // Write in VTK
 //     cout << "start writing\n";
 //     ofstream out;
 //     out.open("out.vtk");

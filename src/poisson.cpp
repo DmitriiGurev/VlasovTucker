@@ -46,13 +46,14 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
     }
 
     // Assemble the system using Triplets (line, row, value)
-    typedef Eigen::Triplet<double> T;
-    std::vector<T> coeffs;
+    typedef Eigen::Triplet<double> Triplet;
+    std::vector<Triplet> coeffs;
 
     _rhs = Eigen::VectorXd::Constant(nEquations, 0.0);
 
     for (int i = 0; i < _mesh.tets.size(); i++)
     {
+
         for (int j = 0; j < 4; j++)
         {
             Tet* tet = _mesh.tets[i];
@@ -63,13 +64,13 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
                 Tet* adjTet = tet->adjTets[j];
                 Point d = adjTet->centroid - tet->centroid;
 
-                coeffs.push_back(T(
+                coeffs.push_back(Triplet(
                     i,
                     adjTet->index,
                     (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
                     ));
                 
-                coeffs.push_back(T(
+                coeffs.push_back(Triplet(
                     i,
                     i,
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
@@ -86,13 +87,13 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 
                 d = d + face->centroid - adjTet->faces[k]->centroid;
 
-                coeffs.push_back(T(
+                coeffs.push_back(Triplet(
                     i,
                     adjTet->index,
                     (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
                     ));
                 
-                coeffs.push_back(T(
+                coeffs.push_back(Triplet(
                     i,
                     i,
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
@@ -105,7 +106,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 
                 Point d = face->centroid - tet->centroid;
 
-                coeffs.push_back(T(
+                coeffs.push_back(Triplet(
                     i,
                     i,
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
@@ -118,7 +119,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
                 // TODO
                 Point neumannGrad = {0.0, 0.0, 0.0};
 
-                // _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area; // ?
+                // _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
             }
         }
     }

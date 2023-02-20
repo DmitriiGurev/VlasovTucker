@@ -6,6 +6,7 @@
 #include <cassert>
 #include <map>
 #include <tuple>
+#include <algorithm>
 
 using namespace std;
 
@@ -69,9 +70,9 @@ Mesh::Mesh(string fileName)
                     face->adjTetInd = j;
                     face->index = faces.size();
                     faces.push_back(face);  
-                    _pointsToFaces[{*face->points[0],
-                                    *face->points[1],
-                                    *face->points[2]}] = face;
+                    _pointsToFaces[{face->points[0],
+                                    face->points[1],
+                                    face->points[2]}] = face;
                 }
             }
         }
@@ -88,9 +89,10 @@ Mesh::Mesh(string fileName)
                 int i1 = entityBlock.data[4 * i + 2] - 1;
                 int i2 = entityBlock.data[4 * i + 3] - 1;
        
-                Face* face = _pointsToFaces[{*points[i0], *points[i1], *points[i2]}];
+                Face* face = _pointsToFaces[{points[i0], points[i1], points[i2]}];
                 face->type = Boundary;
                 face->bcTypes = entityToPhysGroups[entityBlock.entity_tag];
+                face->entity = entityBlock.entity_tag;
             }
         }
     }
@@ -101,33 +103,70 @@ Mesh::Mesh(string fileName)
         Point* p1 = face->points[1];
         Point* p2 = face->points[2];
 
-        if (_pointsToFaces.count({*p0, *p2, *p1}) > 0)
+        if (_pointsToFaces.count({p0, p2, p1}) > 0)
         {
-            Face* invFace = _pointsToFaces[{*p0, *p2, *p1}];
+            Face* invFace = _pointsToFaces[{p0, p2, p1}];
             face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
         }
+    }       
 
-        if (face->type == Boundary)
+    map<char, vector<vector<Face*>>> pairsOfSymPlanes;
+    for (auto pair : entityToPhysGroups)
+    {
+        int entityTag = pair.first;
+        for (auto name : pair.second)
         {
-            if (find(face->bcTypes.begin(),
-                    face->bcTypes.end(),
-                    "Boundary: Periodic") !=
-                    face->bcTypes.end())
+            if (name.substr(0, 19) == "Boundary: Periodic ")
             {
-                for (Point t : {Point(1, 0, 0),
-                                Point(0, 1, 0),
-                                Point(0, 0, 1),
-                                Point(-1, 0, 0),
-                                Point(0, -1, 0),
-                                Point(0, 0, -1)})
-                    if (_pointsToFaces.count({*p0 + t, *p2 + t, *p1 + t}) > 0)
+                char tag = name[19];
+                vector<Face*> plane;
+                for (auto face : faces)
+                {
+                    if (face->type == Boundary && face->entity == entityTag)
                     {
-                        Face* invFace = _pointsToFaces[{*p0 + t, *p2 + t, *p1 + t}];
-                        face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
+                        plane.push_back(face);
                     }
+                }
+                pairsOfSymPlanes[tag].push_back(plane);
             }
         }
-    }       
+    }
+    
+    for (auto& pair : pairsOfSymPlanes)
+    {
+        for (auto& plane : pair.second)
+        {
+            sort(plane.begin(), plane.end(),
+                [&](const auto& lhs, const auto& rhs)
+                {
+                    if (lhs->centroid.x != rhs->centroid.x)
+                    {
+                        return lhs->centroid.x < rhs->centroid.x;
+                    }
+                    if (lhs->centroid.y != rhs->centroid.y)
+                    {
+                        return lhs->centroid.y < rhs->centroid.y;
+                    }
+                    if (lhs->centroid.z != rhs->centroid.z)
+                    {
+                        return lhs->centroid.z < rhs->centroid.z;
+                    }
+                    return false;
+                });
+        }
+    }
+
+    for (auto pair : pairsOfSymPlanes)
+    {
+        for (int i = 0; i < pair.second[0].size(); i++)
+        {
+            Face* face = pair.second[0][i];
+            Face* oppFace = pair.second[1][i];
+            
+            face->adjTet->adjTets[face->adjTetInd] = oppFace->adjTet;
+            oppFace->adjTet->adjTets[oppFace->adjTetInd] = face->adjTet;
+        }
+    }
 }
 
 Mesh::~Mesh()
@@ -140,8 +179,6 @@ Mesh::~Mesh()
 
     for (auto tet : tets)
         delete tet;
-
-    cout << "~Mesh\n";
 }
 
 double Tet::Orientation() const

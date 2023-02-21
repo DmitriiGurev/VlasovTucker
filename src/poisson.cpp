@@ -9,6 +9,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
     _mesh(mesh)
 {
     int nEquations = _mesh.tets.size();
+    _solutionIsUnique = false;
 
     for (int i = 0; i < _mesh.faces.size(); i++)
     {
@@ -25,6 +26,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
                      _mesh.faces[i]->bcTypes.end())
             {
                 _faceTypes[i] = BCType::Dirichlet;
+                _solutionIsUnique = true;
             }
 
             if (find(_mesh.faces[i]->bcTypes.begin(),
@@ -44,7 +46,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
             }
         }
     }
-
+    
     // Assemble the system using Triplets (line, row, value)
     typedef Eigen::Triplet<double> Triplet;
     std::vector<Triplet> coeffs;
@@ -53,6 +55,11 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 
     for (int i = 0; i < _mesh.tets.size(); i++)
     {
+        if (!_solutionIsUnique && i == 0)
+        {
+            coeffs.push_back(Triplet(0, 0, 1));
+            continue;
+        }
 
         for (int j = 0; j < 4; j++)
         {
@@ -118,11 +125,12 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
             {
                 // TODO
                 Point neumannGrad = {0.0, 0.0, 0.0};
-
-                // _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
+                
+                _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
             }
         }
     }
+
     _system = Eigen::SparseMatrix<double>(nEquations, nEquations);
 	_system.setFromTriplets(coeffs.begin(), coeffs.end());
 	_system.makeCompressed();
@@ -136,6 +144,9 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
     Eigen::VectorXd rhs = _rhs;
     for (int i = 0; i < _mesh.tets.size(); i++)
         rhs(i) += (-rho[i] / eps0) * _mesh.tets[i]->volume;
+
+    if (!_solutionIsUnique)
+        rhs(0) = 0;
 
     Eigen::VectorXd solution = _solver.solve(rhs);
 

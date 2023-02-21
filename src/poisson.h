@@ -29,6 +29,8 @@ private:
         Periodic
     };
 
+    bool _solutionIsUnique;
+
     std::vector<BCType> _faceTypes = std::vector<BCType>(_mesh.faces.size());
 
     Eigen::VectorXd				_rhs;

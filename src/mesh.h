@@ -12,61 +12,30 @@ class Point
 public:
     Point() {}
 
-    Point(double x, double y, double z) :
-        x(x), y(y), z(z) {}
+    Point(double x, double y, double z);
 
 public:
     double x;
     double y;
     double z;
 
-    int index;
+    int index; // insertion index
 
 public:
-    Point operator+(const Point& p) const
-    {
-        return Point(x + p.x, y + p.y, z + p.z);
-    }
+    Point operator+(const Point& p) const;
+    Point operator-(const Point& p) const;
+    Point operator/(double d) const;
 
-    Point operator-(const Point& p) const
-    {
-        return Point(x - p.x, y - p.y, z - p.z);
-    }
+    bool operator==(const Point& p) const;
 
-    Point operator/(double d) const
-    {
-        return Point(x / d, y / d, z / d);
-    }
-
-    bool operator==(const Point& p) const
-    {
-        return x == p.x &&
-               y == p.y &&
-               z == p.z;
-    }
-
-    double Abs() const
-    {
-        return sqrt(x * x + y * y + z * z);
-    }
-
-    double DotProduct(const Point& p) const
-    {
-        return x * p.x + y * p.y + z * p.z;
-    }
-
-    Point CrossProduct(const Point& p) const
-    {
-        return {y * p.z - z * p.y,
-                z * p.x - x * p.z,
-                x * p.y - y * p.x};
-    }
+    double Abs() const;
+    double DotProduct(const Point& p) const;
+    Point CrossProduct(const Point& p) const;
 
     friend std::ostream& operator<<(std::ostream& os, const Point& p);
 };
 
-// Forward declaration
-class Tet;
+class Tet; // forward declaration
 
 enum FaceType
 {
@@ -79,42 +48,24 @@ class Face
 public:
     Face() {}
 
-    Face(Point* p0, Point* p1, Point* p2) :
-        points({p0, p1, p2})
-    {
-        centroid = (*p0 + *p1 + *p2) / 3.0;        
-
-        Point a = *p1 - *p0;
-        Point b = *p2 - *p0;
-
-        normal = {a.y * b.z - a.z * b.y,
-                  a.z * b.x - a.x * b.z,
-                  a.x * b.y - a.y * b.x};
-
-        normal = normal / normal.Abs();
-
-        area = a.CrossProduct(b).Abs() / 2.0;
-    }
+    Face(Point* p0, Point* p1, Point* p2);
 
 public:
     std::array<Point*, 3> points = {nullptr, nullptr, nullptr};
 
-    // The tet this face is adjacent to
-    Tet* adjTet = nullptr;
-    // The face-index in the adjacent tet
-    int adjTetInd;
+    Tet* adjTet = nullptr; // the tetrahedron this face is adjacent to
+    int adjTetInd; // the face-index in the adjacent tetrahedron
 
     double area;
     Point centroid;
     Point normal;
 
     FaceType type = Internal;
+    std::vector<std::string> bcTypes; // boundary conditions
 
-    std::vector<std::string> bcTypes;
+    int index; // insertion index
 
-    int index;
-
-    int entity = 0;
+    int entity = 0; // entity tag
 
 public:
     friend std::ostream& operator<<(std::ostream& os, const Face& f);
@@ -125,13 +76,7 @@ class Tet
 public:
     Tet() {}
 
-    Tet(Point* p0, Point* p1, Point* p2, Point* p3) :
-        points({p0, p1, p2, p3})
-    {
-        centroid = (*p0 + *p1 + *p2 + *p3) / 4.0;
-
-        volume = std::abs(Orientation()) / 6.0;
-    }
+    Tet(Point* p0, Point* p1, Point* p2, Point* p3);
 
     double Orientation() const;
 
@@ -143,7 +88,7 @@ public:
     Point centroid;
     double volume;
 
-    int index;
+    int index; // insertion index
 
 public:
     friend std::ostream& operator<<(std::ostream& os, const Tet& t);
@@ -162,35 +107,19 @@ public:
     std::vector<Tet*>   tets;
 
 private:
-    struct KeyTriple
+    struct KeyTriple // key for the lookup table
     {
         Point* p0;
         Point* p1;
         Point* p2;
     
         // All cyclic permutations are equivalent
-        bool operator==(const KeyTriple& keyTriple) const
-        {
-            return (p0 == keyTriple.p0 &&
-                    p1 == keyTriple.p1 &&
-                    p2 == keyTriple.p2) ||
-                    (p0 == keyTriple.p1 &&
-                    p1 == keyTriple.p2 &&
-                    p2 == keyTriple.p0) ||
-                    (p0 == keyTriple.p2 &&
-                    p1 == keyTriple.p0 &&
-                    p2 == keyTriple.p1);
-        }
+        bool operator==(const KeyTriple& keyTriple) const;
     };
     
-    struct HashTriple
+    struct HashTriple // hashing function for the lookup table
     {
-        std::size_t operator()(const KeyTriple& keyTriple) const
-        {
-            return std::hash<Point*>()(keyTriple.p0) & 
-                   std::hash<Point*>()(keyTriple.p1) & 
-                   std::hash<Point*>()(keyTriple.p2);
-        }
+        std::size_t operator()(const KeyTriple& keyTriple) const;
     };
     
     std::unordered_map<KeyTriple, Face*, HashTriple> _pointsToFaces;

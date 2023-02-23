@@ -9,7 +9,6 @@
 
 using namespace std;
 
-// MESH
 Mesh::Mesh(string fileName)
 {
     // Read a .msh file
@@ -221,7 +220,6 @@ std::size_t Mesh::HashTriple::operator()(const KeyTriple& keyTriple) const
             std::hash<Point*>()(keyTriple.p2);
 }
 
-// POINT
 Point::Point(double x, double y, double z) :
     x(x), y(y), z(z) {}
 
@@ -270,7 +268,6 @@ std::ostream& operator<<(std::ostream& os, const Point& p)
     return os;
 }
 
-// FACE
 Face::Face(Point* p0, Point* p1, Point* p2) :
     points({p0, p1, p2})
 {
@@ -301,7 +298,6 @@ std::ostream& operator<<(std::ostream& os, const Face& f)
     return os;
 }
 
-// TET
 Tet::Tet(Point* p0, Point* p1, Point* p2, Point* p3) :
     points({p0, p1, p2, p3})
 {

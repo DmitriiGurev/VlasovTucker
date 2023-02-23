@@ -36,6 +36,9 @@ private:
     Eigen::VectorXd				_rhs;
 	Eigen::SparseMatrix<double> _system;
 
-	Eigen::SparseLU<Eigen::SparseMatrix<double>,
-                    Eigen::COLAMDOrdering<int>> _solver;
+	// Eigen::SparseLU<Eigen::SparseMatrix<double>,
+    //                 Eigen::COLAMDOrdering<int>> _solver;
+
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<double>,
+                             Eigen::Lower|Eigen::Upper> _solver;
 };

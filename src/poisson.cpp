@@ -135,8 +135,10 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 	_system.setFromTriplets(coeffs.begin(), coeffs.end());
 	_system.makeCompressed();
 
-	_solver.analyzePattern(_system);
-	_solver.factorize(_system);
+	// _solver.analyzePattern(_system);
+	// _solver.factorize(_system);
+
+    _solver.compute(_system);
 }
 
 vector<double> PoissonSolver::Solve(std::vector<double> rho) const

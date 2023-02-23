@@ -2,7 +2,7 @@ cmake_minimum_required( VERSION 3.10 )
 
 project( vlasov-t )
 
-include_directories( ./include ./src ./include/eigen-3.4.0 ./libs/MshIO-main/include )
+include_directories( ./include ./src ./test ./include/eigen-3.4.0 ./libs/MshIO-main/include )
 
 add_executable( tucker_test ./src/tucker.cpp ./test/tucker_test.cpp )
 add_executable( mesh_test ./src/mesh.cpp ./test/mesh_test.cpp )

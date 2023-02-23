@@ -29,7 +29,7 @@ public:
         _prevTime = Clock::now();
     }
 
-    void SectionTime(std::string sectionName)
+    void PrintSectionTime(std::string sectionName)
     {
         auto duration = std::chrono::duration_cast<mus>(Clock::now() - _prevTime);
         _prevTime = Clock::now();

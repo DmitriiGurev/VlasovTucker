@@ -63,6 +63,11 @@ Tucker::Tucker(const std::vector<Eigen::VectorXd>& u)
     _core.setConstant(1);
 }
 
+int Tucker::Size() const
+{
+    return _core.size() + _u[0].size() + _u[1].size() + _u[2].size(); 
+}
+
 vector<int> Tucker::Dimensions() const
 {
     return _n;
@@ -107,7 +112,7 @@ Tensor<double, 3> Tucker::Reconstructed() const
                    0);
 }
 
-double Tucker::sum() const
+double Tucker::Sum() const
 {
     double sum = 0;
     for (int j0 = 0; j0 < _n[0]; j0++)
@@ -123,7 +128,7 @@ double Tucker::sum() const
     return sum;
 }
 
-double Tucker::norm() const
+double Tucker::Norm() const
 {
     double sumSq = 0;
     for (int j0 = 0; j0 < _n[0]; j0++)

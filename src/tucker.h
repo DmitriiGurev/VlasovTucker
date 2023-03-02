@@ -19,6 +19,8 @@ public:
 	// Create a rank-one tensor from given factors
 	Tucker(const std::vector<Eigen::VectorXd>& u);
 
+	int Size() const;
+
 	std::vector<int> Dimensions() const;
 	std::vector<int> Ranks() const;
 	std::vector<Eigen::MatrixXd> U() const;
@@ -27,8 +29,8 @@ public:
 	double At(int i0, int i1, int i2) const;
 	Eigen::Tensor<double, 3> Reconstructed() const;
 
-	double sum() const;
-	double norm() const;
+	double Sum() const;
+	double Norm() const;
 
 	void Recompress(double eps = 1e-14, int rmax = 1e+6);
 

@@ -6,17 +6,15 @@ using namespace std;
 
 template<>
 void PlasmaParameters::SetPDF<PlasmaParameters::UnifomMaxwell>(
-    const Mesh& mesh,
-    const VelocityGrid<Tensor>& velocityGrid,
     const PlasmaParameters::UnifomMaxwell& paramsPDF)
 {
-    int n0 = velocityGrid.nCells[0];
-    int n1 = velocityGrid.nCells[1];
-    int n2 = velocityGrid.nCells[2];
+    int n0 = _vGrid->nCells[0];
+    int n1 = _vGrid->nCells[1];
+    int n2 = _vGrid->nCells[2];
 
     Tensor v(n0, n1, n2);
 
-    double normConst = pow(pMass / (2 * pi * boltzConst * 
+    double normConst = pow(mass / (2 * pi * boltzConst * 
                            paramsPDF.temperature), 1.5);
 
     for (int i0 = 0; i0 < n0; i0++)
@@ -28,14 +26,19 @@ void PlasmaParameters::SetPDF<PlasmaParameters::UnifomMaxwell>(
                 double velSquared = 0;
                 for (int j = 0; j < 3; j++)
                 {
-                    double velJ = velocityGrid.At(i0, i1, i2)[j] - paramsPDF.averageV[j];
+                    double velJ = _vGrid->At(i0, i1, i2)[j] - paramsPDF.averageV[j];
                     velSquared += velJ * velJ;
                 }
                 v(i0, i1, i2) = paramsPDF.physDensity * normConst *
-                                exp(-pMass * velSquared /
+                                exp(-mass * velSquared /
                                 (2 * boltzConst * paramsPDF.temperature));
             }
         } 
     }
-    pPDF = vector<Tensor>(mesh.tets.size(), v);
+    pdf = vector<Tensor>(_mesh->tets.size(), v);
+}
+
+vector<double> PlasmaParameters::Density() const
+{
+    return {};
 }

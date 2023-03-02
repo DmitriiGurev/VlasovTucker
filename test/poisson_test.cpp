@@ -16,7 +16,7 @@ int main()
     cout << mesh.points.size() << endl;
     cout << mesh.tets.size() << endl;
     
-    PoissonSolver solver(mesh);
+    PoissonSolver solver(&mesh);
     timer.PrintSectionTime("Initializing the solver");
     auto rhoFunc = [&](const Point& p)
     {

@@ -18,9 +18,8 @@ enum class ParticleType
 class PlasmaParameters
 {
 public:
-    // PlasmaParameters(int nSpecies) :
-    //     nSpecies(nSpecies) {}
-    PlasmaParameters() {}
+    PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor>* vGrid) :
+        _mesh(mesh), _vGrid(vGrid) {}
 
     struct UnifomMaxwell
     {
@@ -30,20 +29,18 @@ public:
     };
 
     template <typename ParamsPDF>
-    void SetPDF(const Mesh& mesh,
-                const VelocityGrid<Tensor>& velocityGrid,
-                const ParamsPDF& parameters);
+    void SetPDF(const ParamsPDF& parameters);
+
+    std::vector<double> Density() const;
 
 public:
-    // const int nSpecies;
-    
-    // std::vector<ParticleType> pSpecies;
-    // std::vector<double>       pMass;
-    // std::vector<double>       pCharge;
-    // std::vector<std::vector<Tensor>> pPDF;
+    ParticleType        species;
+    double              mass;
+    double              charge;
 
-    ParticleType        pSpecies;
-    double              pMass;
-    double              pCharge;
-    std::vector<Tensor> pPDF;
+    std::vector<Tensor> pdf;
+
+private:
+    const Mesh* _mesh;
+    const VelocityGrid<Tensor>* _vGrid;
 };

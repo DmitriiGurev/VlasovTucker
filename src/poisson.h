@@ -14,12 +14,12 @@ const int eps0 = 1.0;
 class PoissonSolver
 {
 public:
-    PoissonSolver(const Mesh& mesh);
+    PoissonSolver(const Mesh* mesh);
 
     std::vector<double> Solve(std::vector<double> rho) const;
 
 private:
-    Mesh _mesh;
+    const Mesh* _mesh;
 
     enum class BCType
     {
@@ -31,7 +31,7 @@ private:
 
     bool _solutionIsUnique;
 
-    std::vector<BCType> _faceTypes = std::vector<BCType>(_mesh.faces.size());
+    std::vector<BCType> _faceTypes = std::vector<BCType>(_mesh->faces.size());
 
     Eigen::VectorXd				_rhs;
 	Eigen::SparseMatrix<double> _system;

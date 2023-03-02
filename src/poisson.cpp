@@ -5,42 +5,42 @@
 
 using namespace std;
 
-PoissonSolver::PoissonSolver(const Mesh& mesh) :
+PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _mesh(mesh)
 {
-    int nEquations = _mesh.tets.size();
+    int nEquations = _mesh->tets.size();
     _solutionIsUnique = false;
 
-    for (int i = 0; i < _mesh.faces.size(); i++)
+    for (int i = 0; i < _mesh->faces.size(); i++)
     {
-        if (_mesh.faces[i]->type == Internal)
+        if (_mesh->faces[i]->type == Internal)
         {
             _faceTypes[i] == BCType::NonBoundary;
         }
 
-        if (_mesh.faces[i]->type == Boundary)
+        if (_mesh->faces[i]->type == Boundary)
         {
-            if (find(_mesh.faces[i]->bcTypes.begin(),
-                     _mesh.faces[i]->bcTypes.end(),
+            if (find(_mesh->faces[i]->bcTypes.begin(),
+                     _mesh->faces[i]->bcTypes.end(),
                      "Poisson: Dirichlet") !=
-                     _mesh.faces[i]->bcTypes.end())
+                     _mesh->faces[i]->bcTypes.end())
             {
                 _faceTypes[i] = BCType::Dirichlet;
                 _solutionIsUnique = true;
             }
 
-            if (find(_mesh.faces[i]->bcTypes.begin(),
-                        _mesh.faces[i]->bcTypes.end(),
+            if (find(_mesh->faces[i]->bcTypes.begin(),
+                        _mesh->faces[i]->bcTypes.end(),
                         "Poisson: Neumann") !=
-                        _mesh.faces[i]->bcTypes.end())
+                        _mesh->faces[i]->bcTypes.end())
             {
                 _faceTypes[i] = BCType::Neumann;
             }
 
-            if (find(_mesh.faces[i]->bcTypes.begin(),
-                        _mesh.faces[i]->bcTypes.end(),
+            if (find(_mesh->faces[i]->bcTypes.begin(),
+                        _mesh->faces[i]->bcTypes.end(),
                         "Poisson: Periodic") !=
-                        _mesh.faces[i]->bcTypes.end())
+                        _mesh->faces[i]->bcTypes.end())
             {
                 _faceTypes[i] = BCType::Periodic;
             }
@@ -53,7 +53,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 
     _rhs = Eigen::VectorXd::Constant(nEquations, 0.0);
 
-    for (int i = 0; i < _mesh.tets.size(); i++)
+    for (int i = 0; i < _mesh->tets.size(); i++)
     {
         if (!_solutionIsUnique && i == 0)
         {
@@ -63,7 +63,7 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 
         for (int j = 0; j < 4; j++)
         {
-            Tet* tet = _mesh.tets[i];
+            Tet* tet = _mesh->tets[i];
             Face* face = tet->faces[j];
 
             if (_faceTypes[face->index] == BCType::NonBoundary)
@@ -144,16 +144,16 @@ PoissonSolver::PoissonSolver(const Mesh& mesh) :
 vector<double> PoissonSolver::Solve(std::vector<double> rho) const
 {
     Eigen::VectorXd rhs = _rhs;
-    for (int i = 0; i < _mesh.tets.size(); i++)
-        rhs(i) += (-rho[i] / eps0) * _mesh.tets[i]->volume;
+    for (int i = 0; i < _mesh->tets.size(); i++)
+        rhs(i) += (-rho[i] / eps0) * _mesh->tets[i]->volume;
 
     if (!_solutionIsUnique)
         rhs(0) = 0;
 
     Eigen::VectorXd solution = _solver.solve(rhs);
 
-    vector<double> solutionVec(_mesh.tets.size());
-    for (int i = 0; i < _mesh.tets.size(); i++)
+    vector<double> solutionVec(_mesh->tets.size());
+    for (int i = 0; i < _mesh->tets.size(); i++)
         solutionVec[i] = solution(i);
 
     return solutionVec;

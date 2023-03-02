@@ -47,6 +47,6 @@ int main()
     }
     cout << err / mesh.tets.size() << "\n";
 
-    WriteToVTK("out.vtk", mesh, data);
+    WriteToVTK(ModeVTK::CellData, "out", mesh, data);
     timer.PrintSectionTime("Writing the results");
 }

@@ -2,12 +2,43 @@
 
 using namespace std;
 
-void WriteToVTK(string fileName,
+void WriteToVTK(ModeVTK mode, 
+                string fileName,
                 const Mesh& mesh,
                 const map<string, vector<double>>& data)
 {
+    if (mode == ModeVTK::Mesh)
+    {
+        // Write faces
+        ofstream out;
+        out.open(fileName + "_faces.vtk");
+
+        out << "# vtk DataFile Version 2.0\n";
+        out << "Poisson_test\n";
+        out << "ASCII\n";
+        out << "DATASET UNSTRUCTURED_GRID\n";
+
+        out << "POINTS " << mesh.points.size() <<  " float\n";
+        for (auto p : mesh.points)
+            out << p->x << " " << p->y << " " << p->z << "\n";
+
+        out << "CELLS " << mesh.faces.size() << " " << mesh.faces.size() * 4 << "\n";
+        for (auto f : mesh.faces)
+            out << 3 << " "
+                << f->points[0]->index << " " 
+                << f->points[1]->index << " "
+                << f->points[2]->index << "\n";
+        out << "\n";
+
+        out << "CELL_TYPES " << mesh.faces.size() << "\n";
+        for (auto f : mesh.faces)
+            out << 5 << "\n";
+
+        out.close();
+    }
+
     ofstream out;
-    out.open(fileName);
+    out.open(fileName + ".vtk");
 
     out << "# vtk DataFile Version 2.0\n";
     out << "Poisson_test\n";
@@ -31,14 +62,19 @@ void WriteToVTK(string fileName,
     for (auto t : mesh.tets)
         out << 10 << "\n";
         
-    for (const auto& pair : data)
+    if (mode == ModeVTK::CellData)
     {
-        out << "CELL_DATA " << mesh.tets.size() << "\n";
-        out << "SCALARS " << pair.first << " double 1\n";
-        out << "LOOKUP_TABLE default\n";
-        for (int i = 0; i < mesh.tets.size(); i++)
-            out << pair.second[i] << "\n";
+        if (data.size() > 0)
+        {
+            for (const auto& pair : data)
+            {
+                out << "CELL_DATA " << mesh.tets.size() << "\n";
+                out << "SCALARS " << pair.first << " double 1\n";
+                out << "LOOKUP_TABLE default\n";
+                for (int i = 0; i < mesh.tets.size(); i++)
+                    out << pair.second[i] << "\n";
+            }
+        }
     }
-
     out.close();
 }

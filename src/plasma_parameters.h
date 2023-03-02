@@ -4,6 +4,9 @@
 #include <vector>
 
 #include "constants.h"
+#include "mesh.h"
+#include "tensor_type.h"
+#include "velocity_grid.h"
 
 enum class ParticleType
 {
@@ -12,34 +15,35 @@ enum class ParticleType
     Neutral
 };
 
-struct PlasmaParameters
+class PlasmaParameters
 {
-    void ReadParameters(std::string fileName);
+public:
+    // PlasmaParameters(int nSpecies) :
+    //     nSpecies(nSpecies) {}
+    PlasmaParameters() {}
 
-    int nSpecies;
+    struct UnifomMaxwell
+    {
+        double physDensity;
+        double temperature;
+        std::array<double, 3> averageV;
+    };
 
-    std::vector<ParticleType> pSpecies;
-    std::vector<double>       pMass;
-    std::vector<double>       pCharge;
-    std::vector<double>       pDensity;
-    std::vector<double>       pTemperature;
+    template <typename ParamsPDF>
+    void SetPDF(const Mesh& mesh,
+                const VelocityGrid<Tensor>& velocityGrid,
+                const ParamsPDF& parameters);
+
+public:
+    // const int nSpecies;
+    
+    // std::vector<ParticleType> pSpecies;
+    // std::vector<double>       pMass;
+    // std::vector<double>       pCharge;
+    // std::vector<std::vector<Tensor>> pPDF;
+
+    ParticleType        pSpecies;
+    double              pMass;
+    double              pCharge;
+    std::vector<Tensor> pPDF;
 };
-
-void PlasmaParameters::ReadParameters(std::string fileName)
-{
-    // TODO: Read from a file
-
-    int nSpecies = 1;
-    pSpecies     = {ParticleType::Electron};
-    pMass        = {elMass, 131.29};
-    pCharge      = {-elCharge};
-    pDensity     = {1.0e17};
-    pTemperature = {1.0 * electronvolt};
-
-    // int nSpecies = 2;
-    // pSpecies     = {ParticleType::Electron, ParticleType::Ion};
-    // pMass        = {elMass, 131.29 * atomicMass};
-    // pCharge      = {-elCharge, elCharge};
-    // pDensity     = {1.0e17, 1.0e17};
-    // pTemperature = {1.0 * electronvolt, 1.0 * electronvolt};
-}

@@ -1,5 +1,7 @@
 #pragma once
 
+const double pi = 3.14159265358979323846;
+
 const double atomicMass   = 1.66e-27;  // kg
 const double elMass       = 9.1e-31;   // kg
 const double elCharge     = 1.6e-19;   // C

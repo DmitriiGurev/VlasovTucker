@@ -31,8 +31,7 @@ int main()
     for (int i = 0; i < mesh.tets.size(); i++)
         rho[i] = rhoFunc(mesh.tets[i]->centroid);
 
-    map<string, vector<double>> data;
-    data["phi"] = solver.Solve(rho);
+    vector<double> phi = solver.Solve(rho);
     timer.PrintSectionTime("Solving the system");
 
     double err = 0.0;
@@ -42,11 +41,11 @@ int main()
                             sin(mesh.tets[i]->centroid.y * 2 * M_PI) * 
                             cos(mesh.tets[i]->centroid.z * 0.5 * M_PI);
 
-        double actual = data["phi"][i];
+        double actual = phi[i];
         err += abs(analytical - actual);
     }
     cout << err / mesh.tets.size() << "\n";
 
-    WriteToVTK(ModeVTK::CellData, "out", mesh, data);
+    VTK::WriteCellData("phi", mesh, phi);
     timer.PrintSectionTime("Writing the results");
 }

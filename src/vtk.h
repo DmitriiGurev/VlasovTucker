@@ -6,14 +6,19 @@
 #include <string>
 
 #include "mesh.h"
+#include "tensor_type.h"
+#include "velocity_grid.h"
 
-enum class ModeVTK
+namespace VTK
 {
-    CellData,
-    Mesh
-};
+void WriteCellData(std::string fileName,
+                   const Mesh& mesh,
+                   const std::vector<double>& data = {});
 
-void WriteToVTK(ModeVTK mode,
-                std::string fileName,
-                const Mesh& mesh,
-                const std::map<std::string, std::vector<double>>& data = {});
+void WriteMesh(std::string fileName,
+               const Mesh& mesh);
+
+void WriteDistribution(std::string fileName,
+                       const VelocityGrid<Tensor>& velocityGrid,
+                       const Tensor& distribution);
+}

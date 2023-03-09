@@ -2,21 +2,24 @@
 #include <string>
 
 #include "mesh.h"
-#include "tensor_type.h"
+#include "typedefs.h"
 #include "plasma_parameters.h"
 #include "vtk.h"
 #include "velocity_grid.h"
+#include "solver.h"
 
 using namespace std;
 
 int main(/*int argc, char *argv[]*/)
 {
-    string meshFileName = "../data/meshes/test_mesh_periodic.msh";
+    string meshFileName = "../data/meshes/fully_periodic_fine.msh";
     Mesh mesh(meshFileName);
+    cout << mesh.faces.size() << " faces, ";
+    cout << mesh.tets.size() << " tets\n";
 
-    int nCellsVX = 35;
-    double minVX = -1.0e6;
-    double maxVX = 1.0e6;
+    int nCellsVX = 3;
+    double minVX = -1.0;
+    double maxVX = 1.0;
     VelocityGrid<Tensor> vGrid({ nCellsVX, nCellsVX, nCellsVX },
                                { maxVX,    maxVX,    maxVX    },
                                { minVX,    minVX,    minVX    });
@@ -26,18 +29,25 @@ int main(/*int argc, char *argv[]*/)
     plasmaParams.mass    = elMass;
     plasmaParams.charge  = -elCharge;
 
-    PlasmaParameters::UnifomMaxwell paramsPDF;
-    paramsPDF.physDensity = 1.0e0;
-    paramsPDF.temperature = 1.0 * electronvolt;
-    paramsPDF.averageV    = { 0.0, 0.0, 0.0 };
+    PlasmaParameters::Maxwell paramsPDF;
+    // paramsPDF.physDensity = ConstDensity(&mesh, 1.0e0);
+    for (auto tet : mesh.tets)
+    {
+        Point c = tet->centroid;
+        paramsPDF.physDensity.push_back(exp(-pow((c - Point(0.5, 0.5, 0.5)).Abs(), 2) / 0.5));
+    }
+    // paramsPDF.temperature = 1.0e-7;
+    paramsPDF.temperature = 0.0;
+    paramsPDF.averageV    = { 1.0, 0.0, 0.0 };
 
     cout << "The PDF takes up " <<
-        vGrid.nCellsTotal * mesh.tets.size() * 8 / pow(10, 9) << " GB of RAM\n"; 
+        vGrid.nCellsTotal * mesh.tets.size() * 8 / pow(10, 6) << " MB of RAM\n"; 
         
-    plasmaParams.SetPDF<PlasmaParameters::UnifomMaxwell>(paramsPDF);
+    plasmaParams.SetPDF<PlasmaParameters::Maxwell>(paramsPDF);
 
-    VTK::WriteDistribution("distribution", vGrid, plasmaParams.pdf[0]);
+    VTK::WriteDistribution("initial_distribution", vGrid, plasmaParams.pdf[500]);
+    VTK::WriteCellData("initial_density", mesh, plasmaParams.Density());
 
-    // Solver solver(mesh, vGrid, plasmaParams);
-    // Solver::Solution solution = solver.Solve(100, 1.0e-5);
+    Solver solver(&mesh, &vGrid, &plasmaParams);
+    solver.Solve(10000);
 }

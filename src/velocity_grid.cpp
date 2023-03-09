@@ -11,7 +11,7 @@ VelocityGrid<Tensor>::VelocityGrid(array<int, 3> nCells,
     nCellsTotal = nCells[0] * nCells[1] * nCells[2];
 
     for (int j = 0; j < 3; j++)
-        step[j] = (maxV[j] - minV[j]) / nCells[j];
+        step[j] = (maxV[j] - minV[j]) / (nCells[j] - 1);
 
     cellVolume = step[0] * step[1] * step[2];
 

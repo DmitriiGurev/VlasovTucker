@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include "tensor_type.h"
+#include "typedefs.h"
 
 template <class TensorType>
 struct VelocityGrid

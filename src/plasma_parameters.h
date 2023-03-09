@@ -5,7 +5,7 @@
 
 #include "constants.h"
 #include "mesh.h"
-#include "tensor_type.h"
+#include "typedefs.h"
 #include "velocity_grid.h"
 
 enum class ParticleType
@@ -21,9 +21,9 @@ public:
     PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor>* vGrid) :
         _mesh(mesh), _vGrid(vGrid) {}
 
-    struct UnifomMaxwell
+    struct Maxwell
     {
-        double physDensity;
+        std::vector<double> physDensity;
         double temperature;
         std::array<double, 3> averageV;
     };
@@ -34,9 +34,9 @@ public:
     std::vector<double> Density() const;
 
 public:
-    ParticleType        species;
-    double              mass;
-    double              charge;
+    ParticleType species;
+    double       mass;
+    double       charge;
 
     std::vector<Tensor> pdf;
 
@@ -44,3 +44,5 @@ private:
     const Mesh* _mesh;
     const VelocityGrid<Tensor>* _vGrid;
 };
+
+std::vector<double> ConstDensity(const Mesh* mesh, double density);

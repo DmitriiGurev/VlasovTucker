@@ -6,7 +6,7 @@
 #include <string>
 
 #include "mesh.h"
-#include "tensor_type.h"
+#include "typedefs.h"
 #include "velocity_grid.h"
 
 namespace VTK

@@ -276,9 +276,7 @@ Face::Face(Point* p0, Point* p1, Point* p2) :
     Point a = *p1 - *p0;
     Point b = *p2 - *p0;
 
-    normal = {a.y * b.z - a.z * b.y,
-                a.z * b.x - a.x * b.z,
-                a.x * b.y - a.y * b.x};
+    normal = a.CrossProduct(b);
 
     double nLength = normal.Abs();
     if (nLength == 0)

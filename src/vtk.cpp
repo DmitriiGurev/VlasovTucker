@@ -37,7 +37,7 @@ void WriteCellData(string fileName,
     if (data.size() > 0)
     {
         out << "CELL_DATA " << mesh.tets.size() << "\n";
-        out << "SCALARS " << fileName << " double 1\n";
+        out << "SCALARS " << "data" << " double 1\n";
         out << "LOOKUP_TABLE default\n";
         for (int i = 0; i < mesh.tets.size(); i++)
             out << data[i] << "\n";
@@ -151,7 +151,7 @@ void WriteDistribution(string fileName,
         out << 1 << "\n";
     
     out << "CELL_DATA " << nTotal << "\n";
-    out << "SCALARS " << fileName << " double 1\n";
+    out << "SCALARS " << "data" << " double 1\n";
     out << "LOOKUP_TABLE default\n";
     for (int i0 = 0; i0 < n0; i0++)
     {

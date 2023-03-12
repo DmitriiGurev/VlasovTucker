@@ -12,12 +12,12 @@ using namespace std;
 
 int main(/*int argc, char *argv[]*/)
 {
-    string meshFileName = "../data/meshes/fully_periodic_fine.msh";
+    string meshFileName = "../data/meshes/fully_periodic_coarse.msh";
     Mesh mesh(meshFileName);
     cout << mesh.faces.size() << " faces, ";
     cout << mesh.tets.size() << " tets\n";
 
-    int nCellsVX = 3;
+    int nCellsVX = 9;
     double minVX = -1.0;
     double maxVX = 1.0;
     VelocityGrid<Tensor> vGrid({ nCellsVX, nCellsVX, nCellsVX },
@@ -34,11 +34,11 @@ int main(/*int argc, char *argv[]*/)
     for (auto tet : mesh.tets)
     {
         Point c = tet->centroid;
-        paramsPDF.physDensity.push_back(exp(-pow((c - Point(0.5, 0.5, 0.5)).Abs(), 2) / 0.5));
+        paramsPDF.physDensity.push_back(exp(-pow((c - Point(0.5, 0.5, 0.5)).Abs(), 2) * 10));
     }
-    // paramsPDF.temperature = 1.0e-7;
-    paramsPDF.temperature = 0.0;
-    paramsPDF.averageV    = { 1.0, 0.0, 0.0 };
+    paramsPDF.temperature = 1.0e-9;
+    // paramsPDF.temperature = 0.0;
+    paramsPDF.averageV    = { 0.0, 0.0, 0.0 };
 
     cout << "The PDF takes up " <<
         vGrid.nCellsTotal * mesh.tets.size() * 8 / pow(10, 6) << " MB of RAM\n"; 

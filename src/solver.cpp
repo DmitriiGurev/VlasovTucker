@@ -52,9 +52,44 @@ void Solver::Solve(int nIterations)
                     (_plasmaParams->pdf[adjTetInd] -
                     _plasmaParams->pdf[tetInd]));
             }
+
+            array<double, 3> force = {1.0, 0.0, 0.0};
+            
+            int n0 = _vGrid->nCells[0];
+            int n1 = _vGrid->nCells[1];
+            int n2 = _vGrid->nCells[2];
+            
+            Tensor pdfDer(n0, n1, n2);
+            pdfDer.setZero();
+            for (int i0 = 0; i0 < n0; i0++)
+            {
+                for (int i1 = 0; i1 < n1; i1++)
+                {
+                    for (int i2 = 0; i2 < n2; i2++)
+                    {
+                        if (i0 == 0)
+                        {
+                            pdfDer(0, i1, i2) = (_plasmaParams->pdf[tetInd](1, i1, i2) -
+                                _plasmaParams->pdf[tetInd](n0 - 1, i1, i2));
+                        }
+                        else if (i0 == n0 - 1)
+                        {
+                            pdfDer(n0 - 1, i1, i2) = (_plasmaParams->pdf[tetInd](0, i1, i2) -
+                                _plasmaParams->pdf[tetInd](n0 - 2, i1, i2));
+                        }
+                        else
+                        {
+                            pdfDer(i0, i1, i2) = (_plasmaParams->pdf[tetInd](i0 + 1, i1, i2) -
+                                _plasmaParams->pdf[tetInd](i0 - 1, i1, i2));
+                        }
+                    }
+                }
+            }
+            _plasmaParams->pdf[tet->index] += -timeStep *
+                    force[0] * pdfDer / (2 * _vGrid->step[0]);
         }
 
-        int writeStep = 100;
+        int writeStep = 50;
         if (it % writeStep == 0)
         {
             double nSumm = 0.0;
@@ -67,7 +102,10 @@ void Solver::Solve(int nIterations)
             cout << it << " ";
             cout << "\n";
 
-            VTK::WriteCellData("solution/density/density_" + to_string(it / writeStep), *_mesh, density);
+            VTK::WriteCellData("solution/density/density_" + to_string(it / writeStep),
+                *_mesh, density);
+            VTK::WriteDistribution("solution/distribution/distribution_" + to_string(it / writeStep),
+                *_vGrid, _plasmaParams->pdf[100]);
         }
     }
 }

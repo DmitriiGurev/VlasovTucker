@@ -12,7 +12,8 @@ enum class ParticleType
 {
     Electron,
     Ion,
-    Neutral
+    Neutral,
+    Custom
 };
 
 class PlasmaParameters
@@ -21,11 +22,11 @@ public:
     PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor>* vGrid) :
         _mesh(mesh), _vGrid(vGrid) {}
 
-    struct Maxwell
+    struct MaxwellPDF
     {
-        std::vector<double> physDensity;
-        double temperature;
-        std::array<double, 3> averageV;
+        std::vector<double>   physDensity;
+        double                temperature;
+        std::array<double, 3> mostProbableV;
     };
 
     template <typename ParamsPDF>

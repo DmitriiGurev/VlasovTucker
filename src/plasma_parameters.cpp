@@ -5,8 +5,8 @@
 using namespace std;
 
 template<>
-void PlasmaParameters::SetPDF<PlasmaParameters::Maxwell>(
-    const PlasmaParameters::Maxwell& paramsPDF)
+void PlasmaParameters::SetPDF<PlasmaParameters::MaxwellPDF>(
+    const PlasmaParameters::MaxwellPDF& paramsPDF)
 {
     int n0 = _vGrid->nCells[0];
     int n1 = _vGrid->nCells[1];
@@ -29,7 +29,7 @@ void PlasmaParameters::SetPDF<PlasmaParameters::Maxwell>(
                         double velSquared = 0;
                         for (int j = 0; j < 3; j++)
                         {
-                            double velJ = _vGrid->At(i0, i1, i2)[j] - paramsPDF.averageV[j];
+                            double velJ = _vGrid->At(i0, i1, i2)[j] - paramsPDF.mostProbableV[j];
                             velSquared += velJ * velJ;
                         }
                         v(i0, i1, i2) = paramsPDF.physDensity[tet->index] * normConst *
@@ -44,9 +44,9 @@ void PlasmaParameters::SetPDF<PlasmaParameters::Maxwell>(
         {
             v.setZero();
 
-            int i0 = (paramsPDF.averageV[0] - _vGrid->minV[0]) / _vGrid->step[0];
-            int i1 = (paramsPDF.averageV[1] - _vGrid->minV[1]) / _vGrid->step[1];
-            int i2 = (paramsPDF.averageV[2] - _vGrid->minV[2]) / _vGrid->step[2];
+            int i0 = (paramsPDF.mostProbableV[0] - _vGrid->minV[0]) / _vGrid->step[0];
+            int i1 = (paramsPDF.mostProbableV[1] - _vGrid->minV[1]) / _vGrid->step[1];
+            int i2 = (paramsPDF.mostProbableV[2] - _vGrid->minV[2]) / _vGrid->step[2];
             v(i0, i1, i2) = paramsPDF.physDensity[tet->index] / _vGrid->cellVolume;
         }
 
@@ -77,6 +77,8 @@ vector<double> PlasmaParameters::Density() const
                 for (int i2 = 0; i2 < n2; i2++)
                 {
                     density += pdf[i](i0, i1, i2) * _vGrid->cellVolume;
+                    // if (pdf[i](i0, i1, i2) != 0)
+                    //     cout << pdf[i](i0, i1, i2) << "\n";
                 }
             }
         }

@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <cassert>
 
 using namespace std;
 
@@ -108,7 +109,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
             }
             if (_faceTypes[face->index] == BCType::Dirichlet)
             {
-                // TODO
+                /// TODO:
                 double dirichletVal = 0.0;
 
                 Point d = face->centroid - tet->centroid;
@@ -123,8 +124,8 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
             }
             if (_faceTypes[face->index] == BCType::Neumann)
             {
-                // TODO
-                Point neumannGrad = {0.0, 0.0, 0.0};
+                /// TODO:
+                Point neumannGrad = Point({0.0, 0.0, 0.0});
                 
                 _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
             }
@@ -157,4 +158,89 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
         solutionVec[i] = solution(i);
 
     return solutionVec;
+}
+
+vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& potential) const
+{
+    vector<array<double, 3>> result(_mesh->tets.size());
+
+    for (auto tet : _mesh->tets)
+    {
+        array<Point, 4> dist;
+        for (int i = 0; i < 4; i++)
+        {
+            Tet* adjTet = tet->adjTets[i];
+            if (_faceTypes[tet->faces[i]->index] == BCType::NonBoundary)
+            {
+                dist[i] = adjTet->centroid - tet->centroid;
+            }
+            if (_faceTypes[tet->faces[i]->index] == BCType::Periodic)
+            {
+                Point d = (adjTet->centroid - tet->centroid);
+
+                int k = 0;
+                while (adjTet->adjTets[k] != tet)
+                    k++;
+
+                dist[i] = d + tet->faces[i]->centroid - adjTet->faces[k]->centroid;
+            }
+        }
+
+        double val = potential[tet->index];
+        array<double, 4> adjVal;
+        for (int i = 0; i < 4; i++)
+            adjVal[i] = potential[tet->adjTets[i]->index];
+
+        Eigen::Matrix3d m;
+        for (int k = 0; k < 3; k++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                m(k, i) = 0;
+                for (int j = 0; j < 4; j++)
+                    m(k, i) += 2 * dist[j].coords[k] * dist[j].coords[i];
+            }
+        }
+        Eigen::Vector3d rhs;
+        for (int k = 0; k < 3; k++)
+        {
+            rhs(k) = 0;
+            for (int j = 0; j < 4; j++)
+                rhs(k) += -2 * dist[j].coords[k] * (val - adjVal[j]);
+        }
+
+        Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
+        result[tet->index] = {-grad(0), -grad(1), -grad(2)};
+    }
+
+    // Smoothing
+    double sFactor = 0.7;
+    for (auto tet : _mesh->tets)
+    {
+        array<double, 3> smoothGrad;
+        for (int i = 0; i < 3; i++)
+            smoothGrad[i] = result[tet->index][i] * (1 - sFactor);
+
+        vector<double> coeffs;
+        array<double, 3> adjGrad = {0, 0, 0};
+        for (int j = 0; j < 4; j++) {
+            Tet* adjTet = tet->adjTets[j];
+
+            double coeff = 1 / (adjTet->centroid - tet->centroid).Abs();
+            for (int i = 0; i < 3; i++)
+                adjGrad[i] += result[adjTet->index][i] * coeff;
+
+            coeffs.push_back(coeff);
+        }
+        double coeffSum = 0;
+        for (auto coeff : coeffs)
+            coeffSum += coeff;
+        
+        for (int i = 0; i < 3; i++)
+            smoothGrad[i] += sFactor * adjGrad[i] / coeffSum;
+
+        result[tet->index] = smoothGrad;
+    }
+
+    return result;
 }

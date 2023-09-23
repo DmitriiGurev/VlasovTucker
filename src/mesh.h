@@ -12,12 +12,10 @@ class Point
 public:
     Point() {}
 
-    Point(double x, double y, double z);
+    Point(std::array<double, 3> coords);
 
 public:
-    double x;
-    double y;
-    double z;
+    std::array<double, 3> coords;
 
     int index; // insertion index
 
@@ -25,6 +23,7 @@ public:
     Point operator+(const Point& p) const;
     Point operator-(const Point& p) const;
     Point operator/(double d) const;
+    Point operator*(double d) const;
 
     bool operator==(const Point& p) const;
 
@@ -105,6 +104,8 @@ public:
     std::vector<Point*> points;
     std::vector<Face*>  faces;
     std::vector<Tet*>   tets;
+
+    // std::unordered_map<Point*, std::vector<Tet*>> pointToTets;
 
 private:
     struct KeyTriple // key for the lookup table

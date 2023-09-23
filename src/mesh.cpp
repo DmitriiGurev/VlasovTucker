@@ -156,17 +156,17 @@ Mesh::Mesh(string fileName)
             sort(plane.begin(), plane.end(),
                 [&](const auto& lhs, const auto& rhs)
                 {
-                    if (lhs->centroid.x != rhs->centroid.x)
+                    if (lhs->centroid.coords[0] != rhs->centroid.coords[0])
                     {
-                        return lhs->centroid.x < rhs->centroid.x;
+                        return lhs->centroid.coords[0] < rhs->centroid.coords[0];
                     }
-                    if (lhs->centroid.y != rhs->centroid.y)
+                    if (lhs->centroid.coords[1] != rhs->centroid.coords[1])
                     {
-                        return lhs->centroid.y < rhs->centroid.y;
+                        return lhs->centroid.coords[1] < rhs->centroid.coords[1];
                     }
-                    if (lhs->centroid.z != rhs->centroid.z)
+                    if (lhs->centroid.coords[2] != rhs->centroid.coords[2])
                     {
-                        return lhs->centroid.z < rhs->centroid.z;
+                        return lhs->centroid.coords[2] < rhs->centroid.coords[2];
                     }
                     return false;
                 });
@@ -185,6 +185,13 @@ Mesh::Mesh(string fileName)
             oppFace->adjTet->adjTets[oppFace->adjTetInd] = face->adjTet;
         }
     }
+
+    // // Fill in the pointToTets map
+    // for (auto tet : tets)
+    // {
+    //     for (auto point : tet->points)
+    //         pointToTets[point].push_back(tet);
+    // }
 }
 
 Mesh::~Mesh()
@@ -205,10 +212,10 @@ bool Mesh::KeyTriple::operator==(const KeyTriple& keyTriple) const
     return (p0 == keyTriple.p0 &&
             p1 == keyTriple.p1 &&
             p2 == keyTriple.p2) ||
-            (p0 == keyTriple.p1 &&
+           (p0 == keyTriple.p1 &&
             p1 == keyTriple.p2 &&
             p2 == keyTriple.p0) ||
-            (p0 == keyTriple.p2 &&
+           (p0 == keyTriple.p2 &&
             p1 == keyTriple.p0 &&
             p2 == keyTriple.p1);
 }
@@ -216,55 +223,72 @@ bool Mesh::KeyTriple::operator==(const KeyTriple& keyTriple) const
 std::size_t Mesh::HashTriple::operator()(const KeyTriple& keyTriple) const
 {
     return std::hash<Point*>()(keyTriple.p0) & 
-            std::hash<Point*>()(keyTriple.p1) & 
-            std::hash<Point*>()(keyTriple.p2);
+           std::hash<Point*>()(keyTriple.p1) & 
+           std::hash<Point*>()(keyTriple.p2);
 }
 
-Point::Point(double x, double y, double z) :
-    x(x), y(y), z(z) {}
+Point::Point(std::array<double, 3> coords) :
+    coords(coords) {}
 
 Point Point::operator+(const Point& p) const
 {
-    return Point(x + p.x, y + p.y, z + p.z);
+    return Point({coords[0] + p.coords[0],
+                  coords[1] + p.coords[1],
+                  coords[2] + p.coords[2]});
 }
 
 Point Point::operator-(const Point& p) const
 {
-    return Point(x - p.x, y - p.y, z - p.z);
+    return Point({coords[0] - p.coords[0],
+                  coords[1] - p.coords[1],
+                  coords[2] - p.coords[2]});
 }
 
 Point Point::operator/(double d) const
 {
-    return Point(x / d, y / d, z / d);
+    return Point({coords[0] / d,
+                  coords[1] / d,
+                  coords[2] / d});
+}
+
+Point Point::operator*(double d) const
+{
+    return Point({coords[0] * d,
+                  coords[1] * d,
+                  coords[2] * d});
 }
 
 bool Point::operator==(const Point& p) const
 {
-    return x == p.x &&
-            y == p.y &&
-            z == p.z;
+    return coords[0] == p.coords[0] &&
+           coords[1] == p.coords[1] &&
+           coords[2] == p.coords[2];
 }
 
 double Point::Abs() const
 {
-    return sqrt(x * x + y * y + z * z);
+    return sqrt(coords[0] * coords[0] + 
+                coords[1] * coords[1] +
+                coords[2] * coords[2]);
 }
 
 double Point::DotProduct(const Point& p) const
 {
-    return x * p.x + y * p.y + z * p.z;
+    return coords[0] * p.coords[0] +
+           coords[1] * p.coords[1] +
+           coords[2] * p.coords[2];
 }
 
 Point Point::CrossProduct(const Point& p) const
 {
-    return {y * p.z - z * p.y,
-            z * p.x - x * p.z,
-            x * p.y - y * p.x};
+    return Point({coords[1] * p.coords[2] - coords[2] * p.coords[1],
+                  coords[2] * p.coords[0] - coords[0] * p.coords[2],
+                  coords[0] * p.coords[1] - coords[1] * p.coords[0]});
 }
 
 std::ostream& operator<<(std::ostream& os, const Point& p)
 {
-    os << "Point: {" << p.x << ", " << p.y  << ", " << p.z << "}";
+    os << "Point: {" << p.coords[0] << ", " << p.coords[1]  << ", " << p.coords[2] << "}";
     return os;
 }
 
@@ -307,10 +331,10 @@ Tet::Tet(Point* p0, Point* p1, Point* p2, Point* p3) :
 double Tet::Orientation() const
 {
     Eigen::Matrix4d m;
-    m << points[0]->x, points[0]->y, points[0]->z, 1,
-         points[1]->x, points[1]->y, points[1]->z, 1,
-         points[2]->x, points[2]->y, points[2]->z, 1,
-         points[3]->x, points[3]->y, points[3]->z, 1;
+    m << points[0]->coords[0], points[0]->coords[1], points[0]->coords[2], 1,
+         points[1]->coords[0], points[1]->coords[1], points[1]->coords[2], 1,
+         points[2]->coords[0], points[2]->coords[1], points[2]->coords[2], 1,
+         points[3]->coords[0], points[3]->coords[1], points[3]->coords[2], 1;
 
     return m.determinant();
 }

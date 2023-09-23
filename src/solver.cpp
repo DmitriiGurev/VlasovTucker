@@ -1,5 +1,6 @@
 #include "solver.h"
 #include "vtk.h"
+#include "poisson.h"
 
 using namespace std;
 
@@ -8,7 +9,93 @@ Solver::Solver(const Mesh* mesh,
                PlasmaParameters* plasmaParameters) :
     _mesh(mesh),
     _vGrid(velocityGrid),
-    _plasmaParams(plasmaParameters)
+    _plParams(plasmaParameters)
+{
+    /// TODO: Set LogLevel in CMake
+    _log = Log(LogLevel::AllText, "solver_");
+    
+    _ComputeNormalTensors();
+
+    _log << "The normal velocity tensors take up " <<
+        _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6) <<
+        " MB of RAM\n"; 
+}
+
+void Solver::Solve(int nIterations)
+{
+    /// TODO: Calculate it using the Courant number
+    double timeStep = 1.0e-4;
+
+    _log << "Initialize the Poisson solver\n";
+    PoissonSolver pSolver(_mesh);
+
+    _log << "Start the main loop\n";
+    for (int it = 0; it < nIterations; it++)
+    {
+        _log << "Iteration #" << it << "\n";
+        
+        // _log << "Compute the electric field\n";
+        // vector<double> rho = _plParams->Density();
+        // vector<double> phi = pSolver.Solve(rho);
+        // vector<array<double, 3>> field = pSolver.ElectricField(phi);
+
+        _log << "Boltzmann part\n";
+        for (auto tet : _mesh->tets)
+        {
+            int tetInd = tet->index;
+            for (int i = 0; i < 4; i++)
+            {
+                int adjTetInd = tet->adjTets[i]->index;
+                
+                _plParams->pdf[tet->index] += 
+                    -(timeStep / tet->volume) * 0.5 * tet->faces[i]->area * 
+                    (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] + _plParams->pdf[tetInd]) -
+                    _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
+            }
+        }
+
+        // _log << "Vlasov part\n";
+        // for (auto tet : _mesh->tets)
+        // {
+        //     array<double, 3> force = field[tet->index];
+        //     for (int i = 0; i < 3; i++)
+        //         force[i] *= _plParams->charge;
+
+        //     array<Tensor, 3> pdfDers;
+        //     pdfDers[0] = move(_PDFDerivative(tet, 0));
+        //     pdfDers[1] = move(_PDFDerivative(tet, 1));
+        //     pdfDers[2] = move(_PDFDerivative(tet, 2));
+
+        //     for (int i = 0; i < 3; i++)
+        //         _plParams->pdf[tet->index] += -timeStep * force[i] * pdfDers[i];
+        // }
+
+        int writeStep = 50;
+        if (it % writeStep == 0)
+        {
+            double nSumm = 0.0;
+            vector<double> density = _plParams->Density();
+            for (auto tet : _mesh->tets)
+                nSumm += density[tet->index];
+
+            _log << "Time: " << it * timeStep << "\n";
+            _log << "Total density: " << nSumm << "\n";
+
+            // vector<double> field0;
+            // for (int i = 0; i < field.size(); i++)
+            //     field0.push_back(field[0][i]);
+
+            VTK::WriteCellScalarData("solution/density/density_" + to_string(it / writeStep), 
+                *_mesh, density);
+            // VTK::WriteCellScalarData("solution/phi/phi_" + to_string(it / writeStep),
+            //     *_mesh, field0);
+            VTK::WriteDistribution("solution/distribution/distribution_" + to_string(it / writeStep),
+                *_vGrid, _plParams->pdf[100]);
+        }
+    }
+}
+
+void Solver::_ComputeNormalTensors()
 {
     _vNormal = vector<array<Tensor, 4>>(_mesh->tets.size());
     _vNormalAbs = vector<array<Tensor, 4>>(_mesh->tets.size());
@@ -19,93 +106,134 @@ Solver::Solver(const Mesh* mesh,
         for (int i = 0; i < 4; i++)
         {
             Point normal = tet->faces[i]->normal;
-            _vNormal[tetInd][i] = normal.x * _vGrid->v[0] +
-                                  normal.y * _vGrid->v[1] +
-                                  normal.z * _vGrid->v[2]; 
+            _vNormal[tetInd][i] = normal.coords[0] * _vGrid->v[0] +
+                                  normal.coords[1] * _vGrid->v[1] +
+                                  normal.coords[2] * _vGrid->v[2]; 
 
             _vNormalAbs[tetInd][i] = _vNormal[tetInd][i].abs();
         }
     }
-
-    cout << "The normal velocity tensors take up " <<
-        _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6) << " MB of RAM\n"; 
 }
 
-void Solver::Solve(int nIterations)
+Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
 {
-    double timeStep = 1.0e-4;
+    int tetInd = tet->index;
 
-    for (int it = 0; it < nIterations; it++)
+    Tensor pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+
+    array<int, 3> i;
+    for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)
     {
-        for (auto tet : _mesh->tets)
+        for (i[1] = 0; i[1] < _vGrid->nCells[1]; i[1]++)
         {
-            int tetInd = tet->index;
-            for (int i = 0; i < 4; i++)
+            for (i[2] = 0; i[2] < _vGrid->nCells[2]; i[2]++)
             {
-                int adjTetInd = tet->adjTets[i]->index;
-                _plasmaParams->pdf[tet->index] += -(timeStep / tet->volume) *
-                    0.5 * tet->faces[i]->area *
-                    (_vNormal[tetInd][i] *
-                    (_plasmaParams->pdf[adjTetInd] +
-                    _plasmaParams->pdf[tetInd]) -
-                    _vNormalAbs[tetInd][i] *
-                    (_plasmaParams->pdf[adjTetInd] -
-                    _plasmaParams->pdf[tetInd]));
-            }
+                array<int, 3> iPlus = {i[0], i[1], i[2]};
+                array<int, 3> iMinus = {i[0], i[1], i[2]};
 
-            array<double, 3> force = {1.0, 0.0, 0.0};
-            
-            int n0 = _vGrid->nCells[0];
-            int n1 = _vGrid->nCells[1];
-            int n2 = _vGrid->nCells[2];
-            
-            Tensor pdfDer(n0, n1, n2);
-            pdfDer.setZero();
-            for (int i0 = 0; i0 < n0; i0++)
-            {
-                for (int i1 = 0; i1 < n1; i1++)
+                if (i[ind] == 0)
                 {
-                    for (int i2 = 0; i2 < n2; i2++)
-                    {
-                        if (i0 == 0)
-                        {
-                            pdfDer(0, i1, i2) = (_plasmaParams->pdf[tetInd](1, i1, i2) -
-                                _plasmaParams->pdf[tetInd](n0 - 1, i1, i2));
-                        }
-                        else if (i0 == n0 - 1)
-                        {
-                            pdfDer(n0 - 1, i1, i2) = (_plasmaParams->pdf[tetInd](0, i1, i2) -
-                                _plasmaParams->pdf[tetInd](n0 - 2, i1, i2));
-                        }
-                        else
-                        {
-                            pdfDer(i0, i1, i2) = (_plasmaParams->pdf[tetInd](i0 + 1, i1, i2) -
-                                _plasmaParams->pdf[tetInd](i0 - 1, i1, i2));
-                        }
-                    }
+                    iPlus[ind] = 1;
+                    iMinus[ind] = _vGrid->nCells[ind] - 1;
                 }
+                else if (i[ind] == _vGrid->nCells[ind] - 1)
+                {
+                    iPlus[ind] = 0;
+                    iMinus[ind] = _vGrid->nCells[ind] - 2;
+                }
+                else
+                {
+                    iPlus[ind] += 1;
+                    iMinus[ind] -= 1;
+                }
+
+                pdfDer(i[0], i[1], i[2]) = (
+                    _plParams->pdf[tetInd](iPlus[0], iPlus[1], iPlus[2]) - 
+                    2 * _plParams->pdf[tetInd](i[0], i[1], i[2]) + 
+                    _plParams->pdf[tetInd](iMinus[0], iMinus[1], iMinus[2])
+                    ) / (2 * _vGrid->step[ind]);
             }
-            _plasmaParams->pdf[tet->index] += -timeStep *
-                    force[0] * pdfDer / (2 * _vGrid->step[0]);
-        }
-
-        int writeStep = 50;
-        if (it % writeStep == 0)
-        {
-            double nSumm = 0.0;
-            vector<double> density = _plasmaParams->Density();
-            for (auto tet : _mesh->tets)
-                nSumm += density[tet->index];
-
-            cout << it * timeStep << " ";
-            cout << nSumm / _mesh->tets.size() << " ";
-            cout << it << " ";
-            cout << "\n";
-
-            VTK::WriteCellData("solution/density/density_" + to_string(it / writeStep),
-                *_mesh, density);
-            VTK::WriteDistribution("solution/distribution/distribution_" + to_string(it / writeStep),
-                *_vGrid, _plasmaParams->pdf[100]);
         }
     }
+
+    return pdfDer;
 }
+
+// for (int i0 = 0; i0 < n0; i0++)
+// {
+//     for (int i1 = 0; i1 < n1; i1++)
+//     {
+//         for (int i2 = 0; i2 < n2; i2++)
+//         {
+//             // 0
+//             if (i0 == 0)
+//             {
+//                 pdfDer[0](0, i1, i2) = (_plParams->pdf[tetInd](1, i1, i2) -
+//                     _plParams->pdf[tetInd](n0 - 1, i1, i2));
+//             }
+//             else if (i0 == n0 - 1)
+//             {
+//                 pdfDer[0](n0 - 1, i1, i2) = (_plParams->pdf[tetInd](0, i1, i2) -
+//                     _plParams->pdf[tetInd](n0 - 2, i1, i2));
+//             }
+//             else
+//             {
+//                 pdfDer[0](i0, i1, i2) = (_plParams->pdf[tetInd](i0 + 1, i1, i2) -
+//                     _plParams->pdf[tetInd](i0 - 1, i1, i2));
+//             }
+
+//             // 1
+//             if (i1 == 0)
+//             {
+//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, 1, i2) -
+//                     _plParams->pdf[tetInd](i0, n1 - 1, i2));
+//             }
+//             else if (i1 == n1 - 1)
+//             {
+//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, 0, i2) -
+//                     _plParams->pdf[tetInd](i0, n1 - 2, i2));
+//             }
+//             else
+//             {
+//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1 + 1, i2) -
+//                     _plParams->pdf[tetInd](i0, i1 - 1, i2));
+//             }
+
+//             // 2
+//             if (i2 == 0)
+//             {
+//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, 1) -
+//                     _plParams->pdf[tetInd](i0, i1, n2 - 1));
+//             }
+//             else if (i2 == n2 - 1)
+//             {
+//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, 0) -
+//                     _plParams->pdf[tetInd](i0, i1, n2 - 2));
+//             }
+//             else
+//             {
+//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, i2 + 1) -
+//                     _plParams->pdf[tetInd](i0, i1, i2 - 1));
+//             }
+//         }
+//     }
+// }
+
+// // X
+// Eigen::MatrixXd der1D = Eigen::MatrixXd::Zero(n0, n0);
+// der1D(0, 0) = -2;
+// der1D(0, 1) = 1;
+// der1D(0, n0 - 1) = 1;
+
+// for (int i = 1; i < n0 - 1; i++)
+// {
+//     der1D(i, i - 1) = 1;
+//     der1D(i, i) = -2;
+//     der1D(i, i + 1) = 1;
+// }
+
+// der1D(n0 - 1, 0) = 1;
+// der1D(n0 - 1, n0 - 2) = 1;
+// der1D(n0 - 1, n0 - 1) = -2;
+
+// cout << der1D;

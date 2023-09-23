@@ -4,9 +4,50 @@ using namespace std;
 
 namespace VTK
 {
-void WriteCellData(string fileName,
-                   const Mesh& mesh,
-                   const vector<double>& data)
+void WriteCellScalarData(string fileName,
+                         const Mesh& mesh,
+                         const vector<double>& data)
+{
+    ofstream out;
+    out.open(fileName + ".vtk");
+
+    out << "# vtk DataFile Version 2.0\n";
+    out << "Vlasov-T\n";
+    out << "ASCII\n";
+    out << "DATASET UNSTRUCTURED_GRID\n";
+    
+    out << "POINTS " << mesh.points.size() <<  " float\n";
+    for (auto p : mesh.points)
+        out << p->coords[0] << " " << p->coords[1] << " " << p->coords[2] << "\n";
+
+    out << "CELLS " << mesh.tets.size() << " " << mesh.tets.size() * 5 << "\n";
+    for (auto t : mesh.tets)
+        out << 4 << " "
+            << t->points[0]->index << " " 
+            << t->points[1]->index << " "
+            << t->points[2]->index << " "
+            << t->points[3]->index << "\n";
+    out << "\n";
+    
+    out << "CELL_TYPES " << mesh.tets.size() << "\n";
+    for (auto t : mesh.tets)
+        out << 10 << "\n";
+
+    if (data.size() > 0)
+    {
+        out << "CELL_DATA " << mesh.tets.size() << "\n";
+        out << "SCALARS " << "data" << " double 1\n";
+        out << "LOOKUP_TABLE default\n";
+        for (int i = 0; i < mesh.tets.size(); i++)
+            out << data[i] << "\n";
+    }
+    
+    out.close();
+}
+
+void WriteCellVectorData(string fileName,
+                         const Mesh& mesh,
+                         const vector<array<double, 3>>& data)
 {
     ofstream out;
     out.open(fileName + ".vtk");
@@ -18,7 +59,7 @@ void WriteCellData(string fileName,
 
     out << "POINTS " << mesh.points.size() <<  " float\n";
     for (auto p : mesh.points)
-        out << p->x << " " << p->y << " " << p->z << "\n";
+        out << p->coords[0] << " " << p->coords[1] << " " << p->coords[2] << "\n";
 
     out << "CELLS " << mesh.tets.size() << " " << mesh.tets.size() * 5 << "\n";
     for (auto t : mesh.tets)
@@ -33,14 +74,13 @@ void WriteCellData(string fileName,
     for (auto t : mesh.tets)
         out << 10 << "\n";
         
-
     if (data.size() > 0)
     {
         out << "CELL_DATA " << mesh.tets.size() << "\n";
-        out << "SCALARS " << "data" << " double 1\n";
+        out << "SCALARS " << "data" << " double 3\n";
         out << "LOOKUP_TABLE default\n";
         for (int i = 0; i < mesh.tets.size(); i++)
-            out << data[i] << "\n";
+            out << data[i][0] << " " << data[i][1] << " " << data[i][2] << "\n";
     }
     
     out.close();
@@ -60,7 +100,7 @@ void WriteMesh(string fileName,
 
     out << "POINTS " << mesh.points.size() <<  " float\n";
     for (auto p : mesh.points)
-        out << p->x << " " << p->y << " " << p->z << "\n";
+        out << p->coords[0] << " " << p->coords[1] << " " << p->coords[2] << "\n";
 
     out << "CELLS " << mesh.faces.size() << " " << mesh.faces.size() * 4 << "\n";
     for (auto f : mesh.faces)
@@ -86,7 +126,7 @@ void WriteMesh(string fileName,
 
     out << "POINTS " << mesh.points.size() <<  " float\n";
     for (auto p : mesh.points)
-        out << p->x << " " << p->y << " " << p->z << "\n";
+        out << p->coords[0] << " " << p->coords[1] << " " << p->coords[2] << "\n";
 
     out << "CELLS " << mesh.tets.size() << " " << mesh.tets.size() * 5 << "\n";
     for (auto t : mesh.tets)

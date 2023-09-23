@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <map>
+#include <array>
 #include <string>
 
 #include "mesh.h"
@@ -11,9 +12,13 @@
 
 namespace VTK
 {
-void WriteCellData(std::string fileName,
-                   const Mesh& mesh,
-                   const std::vector<double>& data = {});
+void WriteCellScalarData(std::string fileName,
+                         const Mesh& mesh,
+                         const std::vector<double>& data = {});
+
+void WriteCellVectorData(std::string fileName,
+                         const Mesh& mesh,
+                         const std::vector<std::array<double, 3>>& data = {});
 
 void WriteMesh(std::string fileName,
                const Mesh& mesh);

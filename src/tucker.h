@@ -3,6 +3,18 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Dense>
 
+template<typename Scalar, int rank, typename sizeType>
+Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
+TensorToMatrix(const Eigen::Tensor<Scalar, rank>& tensor,
+				const sizeType rows,
+				const sizeType cols);
+
+Eigen::MatrixXd Unfolding(const Eigen::Tensor<double, 3>& tensor, int index);
+
+Eigen::Tensor<double, 3> Folding(int I0, int I1, int I2,
+								 const Eigen::MatrixXd& unfolding,
+								 int index);
+
 class Tucker
 {
 public:
@@ -32,9 +44,13 @@ public:
 	double Sum() const;
 	double Norm() const;
 
+	Tucker Abs() const;
+
 	void Recompress(double eps = 1e-14, int rmax = 1e+6);
 
 	friend std::ostream& operator <<(std::ostream& out, const Tucker& t);
+
+	Tucker& operator +=(const Tucker& t);
 
 	friend Tucker operator +(const Tucker& t1, const Tucker& t2);
 	friend Tucker operator -(const Tucker& t1, const Tucker& t2);
@@ -47,20 +63,8 @@ public:
 	friend Tucker Reflection(Tucker t, int axis);
 
 private:
-	template<typename Scalar, int rank, typename sizeType>
-	Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
-	TensorToMatrix(const Eigen::Tensor<Scalar, rank>& tensor,
-				   const sizeType rows,
-				   const sizeType cols) const;
-
-	Eigen::MatrixXd Unfolding(const Eigen::Tensor<double, 3>& tensor, int index) const;
-
-	Eigen::Tensor<double, 3> Folding(int I0, int I1, int I2,
-									 const Eigen::MatrixXd& unfolding,
-									 int index) const;
-
-	void ComputeU(const Eigen::Tensor<double, 3>& tensor,
-				  std::vector<Eigen::MatrixXd>& u,
+	/// TODO: Remove u
+	void _ComputeU(const Eigen::Tensor<double, 3>& tensor,
 				  double eps = 1e-14,
 				  int rmax = 1e+6);
 

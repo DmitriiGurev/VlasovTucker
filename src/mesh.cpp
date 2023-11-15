@@ -7,6 +7,8 @@
 #include <map>
 #include <algorithm>
 
+#include <fstream>
+
 using namespace std;
 
 Mesh::Mesh(string fileName)
@@ -147,42 +149,73 @@ Mesh::Mesh(string fileName)
             }
         }
     }
-    
-    // Lexicographically sort the faces so that parallel planes are sorted identically
+
+    auto ApproxEqual = [](double a, double b)
+    {
+        return abs(a - b) < 1e-8;
+    };
+
+    // Lexicographically sort the faces so that parallel planes were sorted identically
     for (auto& pair : pairsOfSymPlanes)
     {
+        assert(pair.second.size() == 2);
+        assert(pair.second[0].size() == pair.second[1].size());
         for (auto& plane : pair.second)
         {
             sort(plane.begin(), plane.end(),
                 [&](const auto& lhs, const auto& rhs)
                 {
-                    if (lhs->centroid.coords[0] != rhs->centroid.coords[0])
+                    if (!ApproxEqual(lhs->centroid.coords[0], rhs->centroid.coords[0]))
                     {
                         return lhs->centroid.coords[0] < rhs->centroid.coords[0];
                     }
-                    if (lhs->centroid.coords[1] != rhs->centroid.coords[1])
+                    else if (!ApproxEqual(lhs->centroid.coords[1], rhs->centroid.coords[1]))
                     {
                         return lhs->centroid.coords[1] < rhs->centroid.coords[1];
                     }
-                    if (lhs->centroid.coords[2] != rhs->centroid.coords[2])
+                    else if (!ApproxEqual(lhs->centroid.coords[2], rhs->centroid.coords[2]))
                     {
                         return lhs->centroid.coords[2] < rhs->centroid.coords[2];
                     }
-                    return false;
+                    else
+                    {
+                        return false;
+                    }
                 });
+        }
+    }
+
+    for (auto pair : pairsOfSymPlanes)
+    {
+        int i = 0;
+        for (auto plane : pair.second)
+        {
+            i++;
+            ofstream out(pair.first + to_string(i) + ".txt");
+            for (auto face : plane) {
+                out << pair.first << " " << face->centroid << "\n";
+            }
+            // cout << "Next plane\n\n";
         }
     }
 
     // Connect the tetrahedra adjacent to the periodic boundaries
     for (auto pair : pairsOfSymPlanes)
     {
+        // cout << pair.second[0].size() << " " << pair.second[1].size() << "\n";
         for (int i = 0; i < pair.second[0].size(); i++)
         {
+            // cout << i << "\n";
             Face* face = pair.second[0][i];
             Face* oppFace = pair.second[1][i];
             
             face->adjTet->adjTets[face->adjTetInd] = oppFace->adjTet;
             oppFace->adjTet->adjTets[oppFace->adjTetInd] = face->adjTet;
+
+            // cout << *face << "\n";
+            // cout << *oppFace << "\n";
+            // cout << "\n";
+            assert((face->centroid - oppFace->centroid).Abs() == 1);
         }
     }
 

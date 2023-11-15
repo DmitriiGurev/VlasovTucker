@@ -144,12 +144,40 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
 
 vector<double> PoissonSolver::Solve(std::vector<double> rho) const
 {
+    // (?)
+    if (!_solutionIsUnique)
+    {
+        // Make the total charge equal to zero
+        double sum = 0;
+        double vol = 0;
+        for (int i = 0; i < _mesh->tets.size(); i++)
+        {
+            sum += rho[i] * _mesh->tets[i]->volume;
+            vol += _mesh->tets[i]->volume;
+        }
+        // cout << "Sum = " << sum << "\n";
+
+        // double sum2 = 0;
+        for (int i = 0; i < _mesh->tets.size(); i++)
+        {
+            rho[i] -= sum / vol;
+            // sum2 += rho[i] * _mesh->tets[i]->volume;
+        }
+        // cout << "Sum 2 = " << sum2 << "\n";
+        // rho[1] -= sum2 / _mesh->tets[1]->volume;
+    }
+
     Eigen::VectorXd rhs = _rhs;
     for (int i = 0; i < _mesh->tets.size(); i++)
+    {
         rhs(i) += (-rho[i] / eps0) * _mesh->tets[i]->volume;
+    }
 
     if (!_solutionIsUnique)
-        rhs(0) = 0;
+    {
+        cout << "Solution is not unique\n";
+        rhs(0) = 0;        
+    }
 
     Eigen::VectorXd solution = _solver.solve(rhs);
 
@@ -160,6 +188,7 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
     return solutionVec;
 }
 
+// TODO: Look for FVM approximations of the gradient operator
 vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& potential) const
 {
     vector<array<double, 3>> result(_mesh->tets.size());

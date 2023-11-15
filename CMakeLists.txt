@@ -18,14 +18,14 @@ include_directories(./include ./src ./include/eigen-3.4.0 ./libs/MshIO-main/incl
 #     ./src/vtk.cpp
 #     )
 
-# add_executable(
-#     poisson_test
-#     ./src/mesh.cpp
-#     ./src/poisson.cpp
-#     ./test/poisson_test.cpp
-#     ./src/velocity_grid.cpp
-#     ./src/vtk.cpp
-#     )
+add_executable(
+    poisson_test
+    ./src/mesh.cpp
+    ./src/poisson.cpp
+    ./test/poisson_test.cpp
+    ./src/velocity_grid.cpp
+    ./src/vtk.cpp
+    )
 
 add_executable(
     run
@@ -45,5 +45,5 @@ set_property(
     )
 
 # target_link_libraries(mesh_test libmshio)
-# target_link_libraries(poisson_test libmshio)
+target_link_libraries(poisson_test libmshio)
 target_link_libraries(run libmshio)

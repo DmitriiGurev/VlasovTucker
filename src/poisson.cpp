@@ -243,33 +243,36 @@ vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& pote
         result[tet->index] = {-grad(0), -grad(1), -grad(2)};
     }
 
-    // Smoothing
-    double sFactor = 0.7;
-    for (auto tet : _mesh->tets)
+    // Smoothing (?)
+    for (int round = 0; round < 5; round ++) 
     {
-        array<double, 3> smoothGrad;
-        for (int i = 0; i < 3; i++)
-            smoothGrad[i] = result[tet->index][i] * (1 - sFactor);
-
-        vector<double> coeffs;
-        array<double, 3> adjGrad = {0, 0, 0};
-        for (int j = 0; j < 4; j++) {
-            Tet* adjTet = tet->adjTets[j];
-
-            double coeff = 1 / (adjTet->centroid - tet->centroid).Abs();
+        double sFactor = 0.7;
+        for (auto tet : _mesh->tets)
+        {
+            array<double, 3> smoothGrad;
             for (int i = 0; i < 3; i++)
-                adjGrad[i] += result[adjTet->index][i] * coeff;
+                smoothGrad[i] = result[tet->index][i] * (1 - sFactor);
 
-            coeffs.push_back(coeff);
+            vector<double> coeffs;
+            array<double, 3> adjGrad = {0, 0, 0};
+            for (int j = 0; j < 4; j++) {
+                Tet* adjTet = tet->adjTets[j];
+
+                double coeff = 1 / (adjTet->centroid - tet->centroid).Abs();
+                for (int i = 0; i < 3; i++)
+                    adjGrad[i] += result[adjTet->index][i] * coeff;
+
+                coeffs.push_back(coeff);
+            }
+            double coeffSum = 0;
+            for (auto coeff : coeffs)
+                coeffSum += coeff;
+            
+            for (int i = 0; i < 3; i++)
+                smoothGrad[i] += sFactor * adjGrad[i] / coeffSum;
+
+            result[tet->index] = smoothGrad;
         }
-        double coeffSum = 0;
-        for (auto coeff : coeffs)
-            coeffSum += coeff;
-        
-        for (int i = 0; i < 3; i++)
-            smoothGrad[i] += sFactor * adjGrad[i] / coeffSum;
-
-        result[tet->index] = smoothGrad;
     }
 
     return result;

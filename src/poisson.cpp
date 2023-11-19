@@ -195,6 +195,7 @@ vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& pote
 
     for (auto tet : _mesh->tets)
     {
+        /// TODO: Add other bc types
         array<Point, 4> dist;
         for (int i = 0; i < 4; i++)
         {

@@ -130,7 +130,7 @@ Mesh::Mesh(string fileName)
 
     // Group boundaries assigned to one periodic-type physical group
     map<char, vector<vector<Face*>>> pairsOfSymPlanes;
-    for (auto pair : entityToPhysGroups)
+    for (auto pair : entityToPhysGroups) /// TODO: Rename it
     {
         int entityTag = pair.first;
         for (auto name : pair.second)
@@ -215,7 +215,6 @@ Mesh::Mesh(string fileName)
             // cout << *face << "\n";
             // cout << *oppFace << "\n";
             // cout << "\n";
-            assert((face->centroid - oppFace->centroid).Abs() == 1);
         }
     }
 

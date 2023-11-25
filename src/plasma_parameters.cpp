@@ -77,8 +77,6 @@ vector<double> PlasmaParameters::Density() const
                 for (int i2 = 0; i2 < n2; i2++)
                 {
                     density += pdf[i](i0, i1, i2) * _vGrid->cellVolume;
-                    // if (pdf[i](i0, i1, i2) != 0)
-                    //     cout << pdf[i](i0, i1, i2) << "\n";
                 }
             }
         }

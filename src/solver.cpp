@@ -100,7 +100,6 @@ void Solver::Solve(int nIterations)
         if (abs(nSumm) > 1e8)
             throw runtime_error("Solution diverged");
 
-        int writeStep = 5;
         if (it % writeStep == 0)
         {
             VTK::WriteCellScalarData("solution/density/density_" + to_string(it / writeStep), 

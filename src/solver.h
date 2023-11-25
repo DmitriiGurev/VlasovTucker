@@ -6,6 +6,7 @@
 #include "log.h"
 
 #include <vector>
+#include <limits.h>
 
 class Solver
 {
@@ -19,6 +20,9 @@ public:
 private:
     void _ComputeNormalTensors();
     Tensor _PDFDerivative(const Tet* tet, int ind) const;
+
+public:
+    int writeStep = INT_MAX;
 
 private:
     const Mesh* _mesh;

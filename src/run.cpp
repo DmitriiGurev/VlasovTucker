@@ -68,5 +68,6 @@ int main(int argc, char *argv[])
     VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
 
     Solver solver(&mesh, &vGrid, &plasmaParams);
+    solver.writeStep = 50;
     solver.Solve(10000);
 }

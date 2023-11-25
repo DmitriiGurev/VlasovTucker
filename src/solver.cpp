@@ -1,6 +1,7 @@
 #include "solver.h"
 #include "vtk.h"
 #include "poisson.h"
+#include "smoother.h"
 
 using namespace std;
 
@@ -43,6 +44,12 @@ void Solver::Solve(int nIterations)
             sum += rho[i] * _mesh->tets.at(i)->volume;
         }
         cout << "Total charge = " << sum << "\n";
+
+        // Smoothing (?)
+        // Smoother smoother(_mesh);
+        // smoother.factor = 0.7;
+        // smoother.nRounds = 5;
+        // smoother.SmoothField(rho);
 
         vector<double> phi = pSolver.Solve(rho);
         vector<array<double, 3>> field = pSolver.ElectricField(phi);

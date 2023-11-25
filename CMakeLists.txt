@@ -25,6 +25,7 @@ add_executable(
     ./test/poisson_test.cpp
     ./src/velocity_grid.cpp
     ./src/vtk.cpp
+    ./src/smoother.cpp
     )
 
 add_executable(
@@ -35,6 +36,7 @@ add_executable(
     ./src/plasma_parameters.cpp
     ./src/velocity_grid.cpp
     ./src/vtk.cpp
+    ./src/smoother.cpp
     ./src/solver.cpp
     )
 

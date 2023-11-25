@@ -24,7 +24,7 @@ Solver::Solver(const Mesh* mesh,
 void Solver::Solve(int nIterations)
 {
     // TODO: Calculate it using the Courant number
-    double timeStep = 0.1 * 1.0e-4;
+    double timeStep = 1.0 * 1.0e-4;
 
     _log << "Initialize the Poisson solver\n";
     PoissonSolver pSolver(_mesh);
@@ -49,6 +49,13 @@ void Solver::Solve(int nIterations)
         vector<array<double, 3>> field = pSolver.ElectricField(phi);
 
         _log << Indent(1) << "Compute the right-hand side\n";
+        vector<Tensor> rhs(_mesh->tets.size());
+        for (auto tet : _mesh->tets)
+        {
+            rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+            rhs[tet->index].setZero();
+        }
+
         _log << Indent(2) << "Boltzmann part\n";
         for (auto tet : _mesh->tets)
         {
@@ -57,8 +64,7 @@ void Solver::Solve(int nIterations)
             {
                 int adjTetInd = tet->adjTets[i]->index;
                 
-                _plParams->pdf[tet->index] += 
-                    -(timeStep / tet->volume) * 0.5 * tet->faces[i]->area * 
+                rhs[tet->index] -= 0.5 * tet->faces[i]->area / tet->volume * 
                     (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] + _plParams->pdf[tetInd]) -
                     _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
             }
@@ -67,21 +73,25 @@ void Solver::Solve(int nIterations)
         _log << Indent(2) << "Vlasov part\n";
         for (auto tet : _mesh->tets)
         {
-            array<double, 3> force = field[tet->index];
-
             // TODO: Add a constant electric field
-            // array<double, 3> force = {-1, 0, 0};
-
             for (int i = 0; i < 3; i++)
-                force[i] *= _plParams->charge;
+            {
+                double forceComponent = _plParams->charge * field[tet->index][i];
+                rhs[tet->index] -= forceComponent * _PDFDerivative(tet, i);
+            }
+        }
 
-            array<Tensor, 3> pdfDers;
-            pdfDers[0] = move(_PDFDerivative(tet, 0));
-            pdfDers[1] = move(_PDFDerivative(tet, 1));
-            pdfDers[2] = move(_PDFDerivative(tet, 2));
-
-            for (int i = 0; i < 3; i++)
-                _plParams->pdf[tet->index] += -timeStep * force[i] * pdfDers[i];
+        _log << Indent(1) << "Time integration\n";
+        if (timeIntegrationScheme == TimeIntegrationScheme::Explicit)
+        {
+            _log << Indent(1) << "Explicit scheme\n";
+            for (auto tet : _mesh->tets)
+                _plParams->pdf[tet->index] += timeStep * rhs[tet->index];
+        }
+        else if (timeIntegrationScheme == TimeIntegrationScheme::Implicit)
+        {
+            _log << Indent(1) << "Implicit scheme\n";
+            throw runtime_error("The implicit scheme is not implemented");
         }
 
         double nSumm = 0.0;

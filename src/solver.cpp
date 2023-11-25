@@ -12,7 +12,7 @@ Solver::Solver(const Mesh* mesh,
     _vGrid(velocityGrid),
     _plParams(plasmaParameters)
 {
-    /// TODO: Set LogLevel in CMake
+    // TODO: Set LogLevel in CMake
     _log = Log(LogLevel::AllText, "solver_");
     
     _ComputeNormalTensors();
@@ -24,7 +24,7 @@ Solver::Solver(const Mesh* mesh,
 
 void Solver::Solve(int nIterations)
 {
-    /// TODO: Calculate it using the Courant number
+    // TODO: Calculate it using the Courant number
     double timeStep = 0.5 * 1.0e-4;
 
     _log << "Initialize the Poisson solver\n";

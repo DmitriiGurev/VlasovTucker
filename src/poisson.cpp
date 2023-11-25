@@ -111,7 +111,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
             }
             if (_faceTypes[face->index] == BCType::Dirichlet)
             {
-                /// TODO:
+                // TODO:
                 double dirichletVal = 0.0;
 
                 Point d = face->centroid - tet->centroid;
@@ -126,7 +126,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
             }
             if (_faceTypes[face->index] == BCType::Neumann)
             {
-                /// TODO:
+                // TODO:
                 Point neumannGrad = Point({0.0, 0.0, 0.0});
                 
                 _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
@@ -197,7 +197,7 @@ vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& pote
 
     for (auto tet : _mesh->tets)
     {
-        /// TODO: Add other bc types
+        // TODO: Add other bc types
         array<Point, 4> dist;
         for (int i = 0; i < 4; i++)
         {

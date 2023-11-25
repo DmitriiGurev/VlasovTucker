@@ -7,7 +7,7 @@
 template <class TensorType>
 struct VelocityGrid
 {
-    /// TODO: Swap maxV and minV
+    // TODO: Swap maxV and minV
     VelocityGrid(std::array<int, 3> nCells,
                  std::array<double, 3> maxV,
                  std::array<double, 3> minV);

@@ -63,7 +63,7 @@ public:
 	friend Tucker Reflection(Tucker t, int axis);
 
 private:
-	/// TODO: Remove u
+	// TODO: Remove u
 	void _ComputeU(const Eigen::Tensor<double, 3>& tensor,
 				  double eps = 1e-14,
 				  int rmax = 1e+6);

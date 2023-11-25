@@ -13,7 +13,7 @@ enum class LogLevel
     AllText
 };
 
-/// TODO: Remove definitions from the class 
+// TODO: Remove definitions from the class 
 class Log
 {
 public:

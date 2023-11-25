@@ -10,7 +10,7 @@
 
 using namespace std;
 
-/// TODO: Take it from constants.h
+// TODO: Take it from constants.h
 const int eps0 = 1.0;
 
 class PoissonSolver

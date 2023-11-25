@@ -28,8 +28,6 @@ private:
     const Mesh* _mesh;
     const VelocityGrid<Tensor>* _vGrid;
 
-    Log _log;
-
     PlasmaParameters* _plParams;
 
     Log _log;

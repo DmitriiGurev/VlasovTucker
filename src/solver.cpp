@@ -34,7 +34,7 @@ void Solver::Solve(int nIterations)
     {
         _log << "\n" << "Iteration #" << it << "\n";
         
-        _log << string(4, ' ') << "Compute the electric field\n";
+        _log << Indent(1) << "Compute the electric field\n";
         vector<double> rho = _plParams->Density();
         for (int i = 0; i < rho.size(); i++) 
             rho[i] *= _plParams->charge;
@@ -48,8 +48,8 @@ void Solver::Solve(int nIterations)
         vector<double> phi = pSolver.Solve(rho);
         vector<array<double, 3>> field = pSolver.ElectricField(phi);
 
-        _log << string(4, ' ') << "Compute the right-hand side\n";
-        _log << string(8, ' ') << "Boltzmann part\n";
+        _log << Indent(1) << "Compute the right-hand side\n";
+        _log << Indent(2) << "Boltzmann part\n";
         for (auto tet : _mesh->tets)
         {
             int tetInd = tet->index;
@@ -64,7 +64,7 @@ void Solver::Solve(int nIterations)
             }
         }
 
-        _log << string(8, ' ') << "Vlasov part\n";
+        _log << Indent(2) << "Vlasov part\n";
         for (auto tet : _mesh->tets)
         {
             array<double, 3> force = field[tet->index];
@@ -89,8 +89,8 @@ void Solver::Solve(int nIterations)
         for (auto tet : _mesh->tets)
             nSumm += density[tet->index];
 
-        _log << string(4, ' ') << "Time: " << it * timeStep << "\n";
-        _log << string(4, ' ') << "Total density: " << nSumm << "\n";
+        _log << Indent(1) << "Time: " << it * timeStep << "\n";
+        _log << Indent(1) << "Total density: " << nSumm << "\n";
 
         if (abs(nSumm) > 1e8)
             throw runtime_error("Solution diverged");

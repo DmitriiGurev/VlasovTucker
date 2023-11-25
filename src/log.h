@@ -77,3 +77,8 @@ private:
     std::ofstream _fOut; 
     std::string _fPrefix;
 };
+
+static std::string Indent(int level) {
+    int basicIndent = 4;
+    return std::string(basicIndent * level, ' ');
+}

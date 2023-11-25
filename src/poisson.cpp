@@ -1,5 +1,6 @@
 #include "poisson.h"
 
+#include "log.h"
 #include "smoother.h"
 
 #include <iostream>
@@ -177,7 +178,7 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
 
     if (!_solutionIsUnique)
     {
-        cout << string(4, ' ') << "Solution is not unique\n";
+        cout << Indent(1) << "Solution is not unique\n";
         rhs(0) = 0;        
     }
 

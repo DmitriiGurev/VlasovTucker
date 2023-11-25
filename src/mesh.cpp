@@ -192,7 +192,8 @@ Mesh::Mesh(string fileName)
         {
             i++;
             ofstream out(pair.first + to_string(i) + ".txt");
-            for (auto face : plane) {
+            for (auto face : plane)
+            {
                 out << pair.first << " " << face->centroid << "\n";
             }
             // cout << "Next plane\n\n";

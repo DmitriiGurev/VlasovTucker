@@ -17,15 +17,14 @@ Solver::Solver(const Mesh* mesh,
     
     _ComputeNormalTensors();
 
-    _log << "The normal velocity tensors take up " <<
-        _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6) <<
-        " MB of RAM\n"; 
+    int memorySpent = _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6);
+    _log << "The normal velocity tensors take up " << memorySpent << " MB of RAM\n"; 
 }
 
 void Solver::Solve(int nIterations)
 {
     // TODO: Calculate it using the Courant number
-    double timeStep = 0.5 * 1.0e-4;
+    double timeStep = 0.1 * 1.0e-4;
 
     _log << "Initialize the Poisson solver\n";
     PoissonSolver pSolver(_mesh);
@@ -33,32 +32,24 @@ void Solver::Solve(int nIterations)
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
     {
-        _log << "Iteration #" << it << "\n";
+        _log << "\n" << "Iteration #" << it << "\n";
         
-        _log << "Compute the electric field\n";
-        double sum = 0;
+        _log << string(4, ' ') << "Compute the electric field\n";
         vector<double> rho = _plParams->Density();
         for (int i = 0; i < rho.size(); i++) 
-        {
             rho[i] *= _plParams->charge;
-            sum += rho[i] * _mesh->tets.at(i)->volume;
-        }
-        cout << "Total charge = " << sum << "\n";
 
-        // Smoothing (?)
-        // Smoother smoother(_mesh);
-        // smoother.factor = 0.7;
-        // smoother.nRounds = 5;
+        // Smooth the charge density field (?)
+        Smoother smoother(_mesh);
+        smoother.factor = 0.7;
+        smoother.nRounds = 5;
         // smoother.SmoothField(rho);
 
         vector<double> phi = pSolver.Solve(rho);
         vector<array<double, 3>> field = pSolver.ElectricField(phi);
 
-        VTK::WriteCellScalarData("potential", *_mesh, phi);
-        VTK::WriteCellVectorData("field", *_mesh, field);
-        // return;
-
-        _log << "Boltzmann part\n";
+        _log << string(4, ' ') << "Compute the right-hand side\n";
+        _log << string(8, ' ') << "Boltzmann part\n";
         for (auto tet : _mesh->tets)
         {
             int tetInd = tet->index;
@@ -73,12 +64,16 @@ void Solver::Solve(int nIterations)
             }
         }
 
-        _log << "Vlasov part\n";
+        _log << string(8, ' ') << "Vlasov part\n";
         for (auto tet : _mesh->tets)
         {
             array<double, 3> force = field[tet->index];
+
+            // TODO: Add a constant electric field
+            // array<double, 3> force = {-1, 0, 0};
+
             for (int i = 0; i < 3; i++)
-                force[i] *= _plParams->charge; // ?
+                force[i] *= _plParams->charge;
 
             array<Tensor, 3> pdfDers;
             pdfDers[0] = move(_PDFDerivative(tet, 0));
@@ -94,22 +89,30 @@ void Solver::Solve(int nIterations)
         for (auto tet : _mesh->tets)
             nSumm += density[tet->index];
 
-        _log << "Time: " << it * timeStep << "\n";
-        _log << "Total density: " << nSumm << "\n";
+        _log << string(4, ' ') << "Time: " << it * timeStep << "\n";
+        _log << string(4, ' ') << "Total density: " << nSumm << "\n";
 
         if (abs(nSumm) > 1e8)
             throw runtime_error("Solution diverged");
 
+        // Write VTK files
+        VTK::WriteCellScalarData("potential", *_mesh, phi);
+        VTK::WriteCellVectorData("field", *_mesh, field);
+        VTK::WriteCellScalarData("density", *_mesh, _plParams->Density());
+
         if (it % writeStep == 0)
         {
-            VTK::WriteCellScalarData("solution/density/density_" + to_string(it / writeStep), 
-                *_mesh, density);
-            VTK::WriteCellScalarData("solution/phi/phi_" + to_string(it / writeStep),
-                *_mesh, phi);
-            VTK::WriteCellVectorData("solution/field/e_" + to_string(it / writeStep),
-                *_mesh, field);
-            VTK::WriteDistribution("solution/distribution/distribution_" + to_string(it / writeStep),
-                *_vGrid, _plParams->pdf[100]);
+            string densityFile = "solution/density/density_" + to_string(it / writeStep);
+            VTK::WriteCellScalarData(densityFile, *_mesh, density);
+
+            string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
+            VTK::WriteCellScalarData(phiFile, *_mesh, phi);
+
+            string fieldFile = "solution/field/e_" + to_string(it / writeStep);
+            VTK::WriteCellVectorData(fieldFile, *_mesh, field);
+
+            string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
+            VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[100]);
         }
     }
 }
@@ -176,82 +179,3 @@ Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
 
     return pdfDer;
 }
-
-// for (int i0 = 0; i0 < n0; i0++)
-// {
-//     for (int i1 = 0; i1 < n1; i1++)
-//     {
-//         for (int i2 = 0; i2 < n2; i2++)
-//         {
-//             // 0
-//             if (i0 == 0)
-//             {
-//                 pdfDer[0](0, i1, i2) = (_plParams->pdf[tetInd](1, i1, i2) -
-//                     _plParams->pdf[tetInd](n0 - 1, i1, i2));
-//             }
-//             else if (i0 == n0 - 1)
-//             {
-//                 pdfDer[0](n0 - 1, i1, i2) = (_plParams->pdf[tetInd](0, i1, i2) -
-//                     _plParams->pdf[tetInd](n0 - 2, i1, i2));
-//             }
-//             else
-//             {
-//                 pdfDer[0](i0, i1, i2) = (_plParams->pdf[tetInd](i0 + 1, i1, i2) -
-//                     _plParams->pdf[tetInd](i0 - 1, i1, i2));
-//             }
-
-//             // 1
-//             if (i1 == 0)
-//             {
-//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, 1, i2) -
-//                     _plParams->pdf[tetInd](i0, n1 - 1, i2));
-//             }
-//             else if (i1 == n1 - 1)
-//             {
-//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, 0, i2) -
-//                     _plParams->pdf[tetInd](i0, n1 - 2, i2));
-//             }
-//             else
-//             {
-//                 pdfDer[1](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1 + 1, i2) -
-//                     _plParams->pdf[tetInd](i0, i1 - 1, i2));
-//             }
-
-//             // 2
-//             if (i2 == 0)
-//             {
-//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, 1) -
-//                     _plParams->pdf[tetInd](i0, i1, n2 - 1));
-//             }
-//             else if (i2 == n2 - 1)
-//             {
-//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, 0) -
-//                     _plParams->pdf[tetInd](i0, i1, n2 - 2));
-//             }
-//             else
-//             {
-//                 pdfDer[2](i0, i1, i2) = (_plParams->pdf[tetInd](i0, i1, i2 + 1) -
-//                     _plParams->pdf[tetInd](i0, i1, i2 - 1));
-//             }
-//         }
-//     }
-// }
-
-// // X
-// Eigen::MatrixXd der1D = Eigen::MatrixXd::Zero(n0, n0);
-// der1D(0, 0) = -2;
-// der1D(0, 1) = 1;
-// der1D(0, n0 - 1) = 1;
-
-// for (int i = 1; i < n0 - 1; i++)
-// {
-//     der1D(i, i - 1) = 1;
-//     der1D(i, i) = -2;
-//     der1D(i, i + 1) = 1;
-// }
-
-// der1D(n0 - 1, 0) = 1;
-// der1D(n0 - 1, n0 - 2) = 1;
-// der1D(n0 - 1, n0 - 1) = -2;
-
-// cout << der1D;

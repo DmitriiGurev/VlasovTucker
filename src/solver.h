@@ -32,6 +32,9 @@ private:
 
     PlasmaParameters* _plParams;
 
+    Log _log;
+
+    // Normal velocity tensors
     std::vector<std::array<Tensor, 4>> _vNormal;
     std::vector<std::array<Tensor, 4>> _vNormalAbs;
 };

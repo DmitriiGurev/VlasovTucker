@@ -177,7 +177,7 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
 
     if (!_solutionIsUnique)
     {
-        cout << "Solution is not unique\n";
+        cout << string(4, ' ') << "Solution is not unique\n";
         rhs(0) = 0;        
     }
 

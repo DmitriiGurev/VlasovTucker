@@ -106,7 +106,6 @@ void Solver::Solve(int nIterations)
                     int adjTetInd = tet->adjTets[i]->index;
                     if (adjTetInd > tetInd)
                     {   
-                        // + or -?
                         delta[tetInd] -= 0.5 * tet->faces[i]->area / tet->volume * 
                             (_vNormal[tetInd][i] - _vNormalAbs[tetInd][i]) * delta[adjTetInd];
                     }
@@ -134,7 +133,6 @@ void Solver::Solve(int nIterations)
                     int adjTetInd = tet->adjTets[i]->index;
                     if (adjTetInd < tetInd)
                     {   
-                        // + or -?
                         increment -= 0.5 * tet->faces[i]->area / tet->volume * 
                             (_vNormal[tetInd][i] - _vNormalAbs[tetInd][i]) * delta[adjTetInd];
                     }
@@ -183,6 +181,17 @@ void Solver::Solve(int nIterations)
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
             VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[100]);
+
+            // Test
+            vector<double> analytical(_mesh->tets.size());
+            for (auto tet : _mesh->tets)
+            {
+                analytical[tet->index] =
+                    10 + sin((-2 * it * timeStep + 2 * tet->centroid.coords[0]) * (2 * pi));
+            }
+
+            string analyticalFile = "solution/analytical/analytical_" + to_string(it / writeStep);
+            VTK::WriteCellScalarData(analyticalFile, *_mesh, analytical);
         }
     }
 }

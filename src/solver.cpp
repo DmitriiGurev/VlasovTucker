@@ -84,14 +84,74 @@ void Solver::Solve(int nIterations)
         _log << Indent(1) << "Time integration\n";
         if (timeIntegrationScheme == TimeIntegrationScheme::Explicit)
         {
-            _log << Indent(1) << "Explicit scheme\n";
+            _log << Indent(2) << "Scheme: Explicit\n";
             for (auto tet : _mesh->tets)
                 _plParams->pdf[tet->index] += timeStep * rhs[tet->index];
         }
-        else if (timeIntegrationScheme == TimeIntegrationScheme::Implicit)
+        
+        if (timeIntegrationScheme == TimeIntegrationScheme::Implicit)
         {
-            _log << Indent(1) << "Implicit scheme\n";
-            throw runtime_error("The implicit scheme is not implemented");
+            _log << Indent(2) << "Scheme: Implicit (LU-SGS)\n";
+            vector<Tensor> delta = move(rhs);
+
+            Tensor unity(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+            unity.setConstant(1);
+
+            _log << Indent(3) << "Backward sweep\n";
+            for (int tetInd = _mesh->tets.size() - 1; tetInd >= 0; tetInd--)
+            {
+                Tet* tet = _mesh->tets[tetInd];
+                for (int i = 0; i < 4; i++)
+                {
+                    int adjTetInd = tet->adjTets[i]->index;
+                    if (adjTetInd > tetInd)
+                    {   
+                        // + or -?
+                        delta[tetInd] -= 0.5 * tet->faces[i]->area / tet->volume * 
+                            (_vNormal[tetInd][i] - _vNormalAbs[tetInd][i]) * delta[adjTetInd];
+                    }
+                }
+
+                Tensor diagonalTensor = unity / timeStep;
+                for (int i = 0; i < 4; i++)
+                {
+                    diagonalTensor += 0.5 * tet->faces[i]->area / tet->volume *
+                        (_vNormal[tetInd][i] + _vNormalAbs[tetInd][i]);
+                }
+
+                delta[tetInd] /= diagonalTensor;
+            }
+
+            _log << Indent(3) << "Forward sweep\n";
+            for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+            {
+                Tensor increment(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+                increment.setZero();
+
+                Tet* tet = _mesh->tets[tetInd];
+                for (int i = 0; i < 4; i++)
+                {
+                    int adjTetInd = tet->adjTets[i]->index;
+                    if (adjTetInd < tetInd)
+                    {   
+                        // + or -?
+                        increment -= 0.5 * tet->faces[i]->area / tet->volume * 
+                            (_vNormal[tetInd][i] - _vNormalAbs[tetInd][i]) * delta[adjTetInd];
+                    }
+
+                    Tensor diagonalTensor = unity / timeStep;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        diagonalTensor += 0.5 * tet->faces[i]->area / tet->volume *
+                            (_vNormal[tetInd][i] + _vNormalAbs[tetInd][i]);
+                    }
+
+                    delta[tetInd] += increment / diagonalTensor;
+                }
+            }
+
+            for (auto tet : _mesh->tets)
+                _plParams->pdf[tet->index] += delta[tet->index];
         }
 
         double nSumm = 0.0;

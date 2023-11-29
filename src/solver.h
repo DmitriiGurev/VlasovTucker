@@ -8,8 +8,6 @@
 #include <vector>
 #include <limits.h>
 
-enum class TimeIntegrationScheme { Explicit, Implicit };
-
 class Solver
 {
 public:
@@ -24,9 +22,6 @@ private:
     Tensor _PDFDerivative(const Tet* tet, int ind) const;
 
 public:
-    TimeIntegrationScheme timeIntegrationScheme =
-        TimeIntegrationScheme::Explicit;
-
     int writeStep = INT_MAX;
 
 private:

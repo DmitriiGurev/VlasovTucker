@@ -21,7 +21,7 @@ public:
         TimePoint stopTime = Clock::now();
         auto duration = std::chrono::duration_cast<mus>(stopTime - _startTime);
 
-        std::cerr << "Total execution time: " <<  duration.count() / 1.0e6 << " s\n";
+        std::cerr << "Total execution time: " <<  duration.count() / 1.0e6 << "s\n";
     }
 
     void StartSection()
@@ -37,7 +37,7 @@ public:
         if (!sectionName.empty())
             std::cerr << sectionName << ": ";
 
-        std::cerr << duration.count() / 1.0e6 << " s\n";
+        std::cerr << duration.count() / 1.0e6 << "s\n";
     }
 
 private:

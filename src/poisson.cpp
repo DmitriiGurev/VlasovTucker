@@ -53,7 +53,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     
     // Assemble the system using Triplets (line, row, value)
     typedef Eigen::Triplet<double> Triplet;
-    std::vector<Triplet> coeffs;
+    vector<Triplet> coeffs;
 
     _rhs = Eigen::VectorXd::Constant(nEquations, 0.0);
 
@@ -87,7 +87,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
                     ));
             }
-            if (_faceTypes[face->index] == BCType::Periodic)
+            else if (_faceTypes[face->index] == BCType::Periodic)
             {
                 Tet* adjTet = tet->adjTets[j];
                 Point d = (adjTet->centroid - tet->centroid);
@@ -110,9 +110,9 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
                     ));
             }
-            if (_faceTypes[face->index] == BCType::Dirichlet)
+            else if (_faceTypes[face->index] == BCType::Dirichlet)
             {
-                // TODO:
+                // TODO
                 double dirichletVal = 0.0;
 
                 Point d = face->centroid - tet->centroid;
@@ -126,9 +126,9 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                 _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) *
                     face->area * dirichletVal / d.Abs();
             }
-            if (_faceTypes[face->index] == BCType::Neumann)
+            else if (_faceTypes[face->index] == BCType::Neumann)
             {
-                // TODO:
+                // TODO
                 Point neumannGrad = Point({0.0, 0.0, 0.0});
                 
                 _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
@@ -146,7 +146,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _solver.compute(_system);
 }
 
-vector<double> PoissonSolver::Solve(std::vector<double> rho) const
+vector<double> PoissonSolver::Solve(vector<double> rho) const
 {
     // (?)
     if (!_solutionIsUnique)

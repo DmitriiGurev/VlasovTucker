@@ -123,7 +123,8 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                     -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
                     ));
 
-                _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) * face->area * dirichletVal / d.Abs();
+                _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) *
+                    face->area * dirichletVal / d.Abs();
             }
             if (_faceTypes[face->index] == BCType::Neumann)
             {
@@ -191,7 +192,6 @@ vector<double> PoissonSolver::Solve(std::vector<double> rho) const
     return solutionVec;
 }
 
-// TODO: Look for FVM approximations of the gradient operator
 vector<array<double, 3>> PoissonSolver::ElectricField(const vector<double>& potential) const
 {
     vector<array<double, 3>> result(_mesh->tets.size());

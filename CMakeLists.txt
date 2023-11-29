@@ -9,6 +9,8 @@ include_directories(
     ./libs/MshIO-main/include
     )
 
+find_package(OpenMP REQUIRED)
+
 add_library(
     vlasov_tucker
     ./src/mesh.cpp

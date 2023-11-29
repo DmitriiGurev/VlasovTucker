@@ -9,8 +9,6 @@ include_directories(
     ./libs/MshIO-main/include
     )
 
-find_package(OpenMP REQUIRED)
-
 add_library(
     vlasov_tucker
     ./src/mesh.cpp
@@ -22,7 +20,11 @@ add_library(
     ./src/smoother.cpp
     # TODO: Add tucker.cpp
     )
-target_link_libraries(vlasov_tucker OpenMP::OpenMP_CXX)
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(vlasov_tucker PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 add_library(libmshio STATIC IMPORTED)
 set_property(

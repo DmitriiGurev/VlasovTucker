@@ -28,7 +28,10 @@ void Solver::Solve(int nIterations)
     double timeStep = 1.0 * 1.0e-4;
 
     _log << "Initialize the Poisson solver\n";
+
+    Timer timer;
     PoissonSolver pSolver(_mesh);
+    timer.PrintSectionTime("Poisson solver initialization");
 
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
@@ -49,19 +52,27 @@ void Solver::Solve(int nIterations)
 
         vector<double> phi = pSolver.Solve(rho);
         vector<array<double, 3>> field = pSolver.ElectricField(phi);
-
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        _log << Indent(1) << "Update the PDF\n";
-        _log << Indent(2) << "Boltzmann part\n";
+        _log << Indent(1) << "Update the right-hand side\n";
+        vector<Tensor> rhs(_mesh->tets.size());
         for (auto tet : _mesh->tets)
         {
-            int tetInd = tet->index;
+            rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+            rhs[tet->index].setZero();
+        }
+
+        _log << Indent(2) << "Boltzmann part\n";
+        #pragma omp parallel for 
+        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+        {
+            Tet* tet = _mesh->tets[tetInd];
+
             for (int i = 0; i < 4; i++)
             {
                 int adjTetInd = tet->adjTets[i]->index;
                 
-                _plParams->pdf[tet->index] -= timeStep * 0.5 * tet->faces[i]->area / tet->volume * 
+                rhs[tetInd] -= 0.5 * tet->faces[i]->area / tet->volume * 
                     (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] + _plParams->pdf[tetInd]) -
                     _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
             }
@@ -70,14 +81,29 @@ void Solver::Solve(int nIterations)
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(2) << "Vlasov part\n";
-        for (auto tet : _mesh->tets)
+
+        #pragma omp parallel for 
+        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
         {
+            Tet* tet = _mesh->tets[tetInd];
+
             // TODO: Add a constant electric field
-            for (int i = 0; i < 3; i++)
+            for (int k = 0; k < 3; k++)
             {
-                double forceComponent = _plParams->charge * field[tet->index][i];
-                _plParams->pdf[tet->index] -= timeStep * forceComponent * _PDFDerivative(tet, i);
+                double forceComponent = _plParams->charge * field[tetInd][k];
+                rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k);
             }
+        }
+        
+        timer.PrintSectionTime(Indent(2) + "Done");
+
+        _log << Indent(1) << "Time integration\n";
+
+        #pragma omp parallel for 
+        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+        {
+            Tet* tet = _mesh->tets[tetInd];
+            _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
         }
 
         timer.PrintSectionTime(Indent(2) + "Done");

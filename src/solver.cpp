@@ -1,7 +1,8 @@
 #include "solver.h"
-#include "vtk.h"
 #include "poisson.h"
 #include "smoother.h"
+#include "vtk.h"
+#include "timer.h"
 
 using namespace std;
 
@@ -32,6 +33,7 @@ void Solver::Solve(int nIterations)
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
     {
+        Timer timer;
         _log << "\n" << "Iteration #" << it << "\n";
         
         _log << Indent(1) << "Compute the electric field\n";
@@ -48,6 +50,9 @@ void Solver::Solve(int nIterations)
         vector<double> phi = pSolver.Solve(rho);
         vector<array<double, 3>> field = pSolver.ElectricField(phi);
 
+        timer.PrintSectionTime(Indent(2) + "Done");
+
+        _log << Indent(1) << "Update the PDF\n";
         _log << Indent(2) << "Boltzmann part\n";
         for (auto tet : _mesh->tets)
         {
@@ -62,6 +67,8 @@ void Solver::Solve(int nIterations)
             }
         }
 
+        timer.PrintSectionTime(Indent(2) + "Done");
+
         _log << Indent(2) << "Vlasov part\n";
         for (auto tet : _mesh->tets)
         {
@@ -72,6 +79,8 @@ void Solver::Solve(int nIterations)
                 _plParams->pdf[tet->index] -= timeStep * forceComponent * _PDFDerivative(tet, i);
             }
         }
+
+        timer.PrintSectionTime(Indent(2) + "Done");
 
         double nSumm = 0.0;
         vector<double> density = _plParams->Density();

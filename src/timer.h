@@ -29,12 +29,15 @@ public:
         _prevTime = Clock::now();
     }
 
-    void PrintSectionTime(std::string sectionName)
+    void PrintSectionTime(std::string sectionName = "")
     {
         auto duration = std::chrono::duration_cast<mus>(Clock::now() - _prevTime);
         _prevTime = Clock::now();
 
-        std::cerr << sectionName << ": " <<  duration.count() / 1.0e6 << " s\n";
+        if (!sectionName.empty())
+            std::cerr << sectionName << ": ";
+
+        std::cerr << duration.count() / 1.0e6 << " s\n";
     }
 
 private:

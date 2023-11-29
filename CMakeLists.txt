@@ -22,6 +22,7 @@ add_library(
     ./src/smoother.cpp
     # TODO: Add tucker.cpp
     )
+target_link_libraries(vlasov_tucker OpenMP::OpenMP_CXX)
 
 add_library(libmshio STATIC IMPORTED)
 set_property(

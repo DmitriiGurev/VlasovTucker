@@ -84,11 +84,6 @@ void Solver::Solve(int nIterations)
         if (abs(nSumm) > 1e8)
             throw runtime_error("Solution diverged");
 
-        // Write VTK files
-        VTK::WriteCellScalarData("potential", *_mesh, phi);
-        VTK::WriteCellVectorData("field", *_mesh, field);
-        VTK::WriteCellScalarData("density", *_mesh, _plParams->Density());
-
         if (it % writeStep == 0)
         {
             string densityFile = "solution/density/density_" + to_string(it / writeStep);
@@ -102,17 +97,6 @@ void Solver::Solve(int nIterations)
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
             VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[100]);
-
-            // Test
-            vector<double> analytical(_mesh->tets.size());
-            for (auto tet : _mesh->tets)
-            {
-                analytical[tet->index] =
-                    10 + sin((-2 * it * timeStep + 2 * tet->centroid.coords[0]) * (2 * pi));
-            }
-
-            string analyticalFile = "solution/analytical/analytical_" + to_string(it / writeStep);
-            VTK::WriteCellScalarData(analyticalFile, *_mesh, analytical);
         }
     }
 }

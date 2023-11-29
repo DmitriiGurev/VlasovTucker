@@ -46,7 +46,3 @@ private:
     // Eigen::ConjugateGradient<Eigen::SparseMatrix<double>,
     //                          Eigen::Lower|Eigen::Upper> _solver;
 };
-
-std::array<double, 3> Gradient(Point p, double val,
-                               const std::vector<Point>& neighPoints,
-                               const std::vector<double>& neighVals);

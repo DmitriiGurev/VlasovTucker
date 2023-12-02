@@ -18,36 +18,28 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     for (int i = 0; i < _mesh->faces.size(); i++)
     {
         if (_mesh->faces[i]->type == Internal)
-        {
             _faceTypes[i] == BCType::NonBoundary;
-        }
 
         if (_mesh->faces[i]->type == Boundary)
         {
-            if (find(_mesh->faces[i]->bcTypes.begin(),
-                     _mesh->faces[i]->bcTypes.end(),
-                     "Poisson: Dirichlet") !=
-                     _mesh->faces[i]->bcTypes.end())
+            auto FaceTypeIs = [this](int faceInd, string type)
+            {
+                Face* face = _mesh->faces[faceInd]; 
+                auto& bcTypes = face->bcTypes;
+                return find(bcTypes.begin(), bcTypes.end(), type) != bcTypes.end();
+            };
+
+            if (FaceTypeIs(i, "Poisson: Dirichlet"))
             {
                 _faceTypes[i] = BCType::Dirichlet;
                 _solutionIsUnique = true;
             }
 
-            if (find(_mesh->faces[i]->bcTypes.begin(),
-                        _mesh->faces[i]->bcTypes.end(),
-                        "Poisson: Neumann") !=
-                        _mesh->faces[i]->bcTypes.end())
-            {
+            if (FaceTypeIs(i, "Poisson: Neumann"))
                 _faceTypes[i] = BCType::Neumann;
-            }
 
-            if (find(_mesh->faces[i]->bcTypes.begin(),
-                        _mesh->faces[i]->bcTypes.end(),
-                        "Poisson: Periodic") !=
-                        _mesh->faces[i]->bcTypes.end())
-            {
+            if (FaceTypeIs(i, "Poisson: Periodic"))
                 _faceTypes[i] = BCType::Periodic;
-            }
         }
     }
     

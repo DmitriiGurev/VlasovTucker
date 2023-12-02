@@ -16,7 +16,7 @@ Mesh::Mesh(string fileName)
     // Read a .msh file
     mshio::MshSpec spec = mshio::load_msh(fileName);
         
-    // Fill in the vector of nodes
+    // Fill the vector of nodes
     for (int i = 0; i < spec.nodes.num_nodes; i++)
 	{
         Point* point = new Point({spec.nodes.entity_blocks[0].data[3 * i],
@@ -28,7 +28,7 @@ Mesh::Mesh(string fileName)
         points.push_back(point);
     }
 
-    // Fill in the vector of tetrahedra
+    // Fill the vector of tetrahedra
     for (auto entityBlock : spec.elements.entity_blocks)
     {
         if (entityBlock.element_type == 4)
@@ -63,7 +63,7 @@ Mesh::Mesh(string fileName)
                 for (int j = 0; j < 4; j++)
                 {
                     Face* face = tet->faces[j];
-                    // Fill in the adjacency information for the new faces
+                    // Fill the adjacency information for the new faces
                     face->adjTet = tet;
                     face->adjTetInd = j;
 
@@ -71,7 +71,7 @@ Mesh::Mesh(string fileName)
 
                     faces.push_back(face);
 
-                    // Fill in the lookup table
+                    // Fill the lookup table
                     _pointsToFaces[{face->points[0],
                                     face->points[1],
                                     face->points[2]}] = face;
@@ -114,7 +114,7 @@ Mesh::Mesh(string fileName)
         }
     }
 
-    // Fill in the tet-tet adjacency information
+    // Fill the tet-tet adjacency information
     for(auto face : faces)
     {
         Point* p0 = face->points[0];
@@ -185,46 +185,18 @@ Mesh::Mesh(string fileName)
         }
     }
 
-    for (auto pair : pairsOfSymPlanes)
-    {
-        int i = 0;
-        for (auto plane : pair.second)
-        {
-            i++;
-            ofstream out(pair.first + to_string(i) + ".txt");
-            for (auto face : plane)
-            {
-                out << pair.first << " " << face->centroid << "\n";
-            }
-            // cout << "Next plane\n\n";
-        }
-    }
-
     // Connect the tetrahedra adjacent to the periodic boundaries
     for (auto pair : pairsOfSymPlanes)
     {
-        // cout << pair.second[0].size() << " " << pair.second[1].size() << "\n";
         for (int i = 0; i < pair.second[0].size(); i++)
         {
-            // cout << i << "\n";
             Face* face = pair.second[0][i];
             Face* oppFace = pair.second[1][i];
             
             face->adjTet->adjTets[face->adjTetInd] = oppFace->adjTet;
             oppFace->adjTet->adjTets[oppFace->adjTetInd] = face->adjTet;
-
-            // cout << *face << "\n";
-            // cout << *oppFace << "\n";
-            // cout << "\n";
         }
     }
-
-    // // Fill in the pointToTets map
-    // for (auto tet : tets)
-    // {
-    //     for (auto point : tet->points)
-    //         pointToTets[point].push_back(tet);
-    // }
 }
 
 Mesh::~Mesh()

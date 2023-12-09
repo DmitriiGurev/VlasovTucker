@@ -14,7 +14,7 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-    string meshFileName = "../data/meshes/fully_periodic_mesh.msh";
+    string meshFileName = "../data/meshes/rectangle_mixed.msh";
 
     Timer timer;
     timer.StartSection();
@@ -37,12 +37,13 @@ int main(int argc, char *argv[])
     plasmaParams.charge  = 10;
 
     PlasmaParameters::MaxwellPDF paramsPDF;
-    for (auto tet : mesh.tets)
+
+    auto rhoFunc = [](const Point& p)
     {
-        Point c = tet->centroid;
-        double rho = 10 + 0.2 * sin(1 * c.coords[0] * (2 * pi));
-        paramsPDF.physDensity.push_back(rho);
-    }
+        return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi));
+    };
+
+    paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
     paramsPDF.mostProbableV = { 0, 0, 0 };
 

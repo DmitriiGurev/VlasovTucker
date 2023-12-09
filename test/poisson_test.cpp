@@ -1,4 +1,5 @@
 #include "poisson.h"
+#include "plasma_parameters.h"
 #include "vtk.h"
 #include "timer.h"
 
@@ -11,76 +12,75 @@ int main()
 {
     Timer timer;
 
-    Mesh mesh("../data/meshes/rectangle.msh");
+    Mesh mesh("../data/rect_box_1989.msh");
     timer.PrintSectionTime("Reading the mesh");
     cout << mesh.points.size() << endl;
     cout << mesh.tets.size() << endl;
+
+    double averageSize = 0;
+    for (auto tet : mesh.tets)
+    {
+        averageSize += pow(tet->volume * 6 * sqrt(2), 1 / 3.);
+    }
+    averageSize /= mesh.tets.size();
+    cout << "Average size: " << averageSize << "\n";
 
     VTK::WriteMesh("mesh", mesh);
     
     cout << "Initialize the solver...\n";
     PoissonSolver solver(&mesh);
     timer.PrintSectionTime("Initializing the solver");
-    auto rhoFunc = [&](const Point& p) 
+
+    auto rhoFunc = [](const Point& p) 
     {
-        // return exp(-pow((p - Point({0.5, 0.5, 0.5})).Abs(), 2) * 10);
-        
-        // double x = p.coords[0];
-        // return 10 + (x < 0.5) ? (-0.25 + x) : (0.75 - x);
-
-        double pi = 3.1415926;
-        double rho = sin(p.coords[0] * 2 * pi); /* *
-                     sin(p.coords[1] * 2 * pi) *
-                     sin(p.coords[2] * 2 * pi); */
-
-        return rho;
+        return 2 * 4 * M_PI * M_PI * sin((p.coords[0] + p.coords[1]) * 2 * M_PI);
     };
 
-    vector<double> rho(mesh.tets.size());
-
-    double sum = 0;
-    double vol = 0;
-    for (int i = 0; i < mesh.tets.size(); i++)
-    {
-        rho[i] = rhoFunc(mesh.tets[i]->centroid);
-        sum += rho[i] * mesh.tets[i]->volume;
-        vol += mesh.tets[i]->volume;
-    }
-    cout << sum << "\n";
-    cout << vol << "\n";
+    vector<double> rho = move(ScalarField(&mesh, rhoFunc));
+    VTK::WriteCellScalarData("rho", mesh, rho);
 
     vector<double> phi = solver.Solve(rho);
     timer.PrintSectionTime("Solving the system");
 
+    double phiAvg = 0;
+    for (int i = 0; i < mesh.tets.size(); i++)
+        phiAvg += phi[i];
+    phiAvg /= mesh.tets.size();
+    for (int i = 0; i < mesh.tets.size(); i++)
+        phi[i] -= phiAvg;
+
+    vector<double> phiAnalytical;
     double err = 0.0;
     for (int i = 0; i < mesh.tets.size(); i++)
     {
-        double analytical = sin(mesh.tets[i]->centroid.coords[0] * 2 * M_PI); //* 
-                            // sin(mesh.tets[i]->centroid.coords[1] * 2 * M_PI) * 
-                            // sin(mesh.tets[i]->centroid.coords[2] * 2 * M_PI);
-
+        Point c = mesh.tets[i]->centroid;
+        double analytical = sin((c.coords[0] + c.coords[1]) * 2 * M_PI);
         double actual = phi[i];
         err += abs(analytical - actual);
+
+        phiAnalytical.push_back(analytical);
     }
-    cout << err / mesh.tets.size() << "\n";
+    cout << "Phi error: " << err / mesh.tets.size() << "\n";
+    VTK::WriteCellScalarData("phi", mesh, phi);
+    VTK::WriteCellScalarData("phi_analytical", mesh, phiAnalytical);
 
     vector<array<double, 3>> field = solver.ElectricField(phi);
-
-    double errDX = 0.0;
-    VTK::WriteCellScalarData("rho", mesh, rho);
+    vector<array<double, 3>> fieldAnalytical;
+    double errField = 0;
     for (int i = 0; i < mesh.tets.size(); i++)
     {
-        double analyticalDX = 2 * M_PI * cos(mesh.tets[i]->centroid.coords[0] * 2 * M_PI); // * 
-                            //   sin(mesh.tets[i]->centroid.coords[1] * 2 * M_PI) * 
-                            //   sin(mesh.tets[i]->centroid.coords[2] * 2 * M_PI);
-        double actualDX = -field[i][0];
-        errDX += abs(analyticalDX - actualDX);
+        Point c = mesh.tets[i]->centroid;
+        double cosine = cos((c.coords[0] + c.coords[1]) * 2 * M_PI);
+        Point analytical({1, 1, 0});
+        analytical = analytical * cosine * (2 * M_PI);
 
-        // cout << analyticalDX << " " << actualDX << "\n";
+        Point actual(field[i]);
+        errField += (analytical - actual).Abs();
+
+        fieldAnalytical.push_back(analytical.coords);
     }
-    cout << errDX / mesh.tets.size() << "\n";
-
-    VTK::WriteCellScalarData("phi", mesh, phi);
+    cout << "Field error: " << errField / mesh.tets.size() << "\n";
     VTK::WriteCellVectorData("electric_field", mesh, field);
+    VTK::WriteCellVectorData("electric_field_analytical", mesh, fieldAnalytical);
     timer.PrintSectionTime("Writing the results");
 }

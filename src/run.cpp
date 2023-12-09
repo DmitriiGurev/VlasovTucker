@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
         
     plasmaParams.SetPDF<PlasmaParameters::MaxwellPDF>(paramsPDF);
 
-    VTK::WriteDistribution("initial_distribution", vGrid, plasmaParams.pdf[500]);
+    VTK::WriteDistribution("initial_distribution", vGrid, plasmaParams.pdf[mesh.tets.size() / 2]);
     VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
 
     Solver solver(&mesh, &vGrid, &plasmaParams);

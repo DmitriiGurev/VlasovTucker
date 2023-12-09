@@ -131,7 +131,7 @@ void Solver::Solve(int nIterations)
             VTK::WriteCellVectorData(fieldFile, *_mesh, field);
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
-            VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[100]);
+            VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
         }
     }
 }

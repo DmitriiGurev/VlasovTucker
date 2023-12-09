@@ -34,12 +34,18 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                 _faceTypes[i] = BCType::Dirichlet;
                 _solutionIsUnique = true;
             }
-
-            if (FaceTypeIs(i, "Poisson: Neumann"))
+            else if (FaceTypeIs(i, "Poisson: Neumann"))
+            {
                 _faceTypes[i] = BCType::Neumann;
-
-            if (FaceTypeIs(i, "Poisson: Periodic"))
+            }
+            else if (FaceTypeIs(i, "Poisson: Periodic"))
+            {
                 _faceTypes[i] = BCType::Periodic;
+            }
+            else
+            {
+                throw invalid_argument("Invalid BC type");
+            }
         }
     }
     
@@ -67,17 +73,11 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                 Tet* adjTet = tet->adjTets[j];
                 Point d = adjTet->centroid - tet->centroid;
 
-                coeffs.push_back(Triplet(
-                    i,
-                    adjTet->index,
-                    (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
-                    ));
+                coeffs.push_back(Triplet(i, adjTet->index,
+                    (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
                 
-                coeffs.push_back(Triplet(
-                    i,
-                    i,
-                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
-                    ));
+                coeffs.push_back(Triplet(i, i,
+                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
             }
             else if (_faceTypes[face->index] == BCType::Periodic)
             {
@@ -90,17 +90,11 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
 
                 d = d + face->centroid - adjTet->faces[k]->centroid;
 
-                coeffs.push_back(Triplet(
-                    i,
-                    adjTet->index,
-                    (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
-                    ));
+                coeffs.push_back(Triplet(i, adjTet->index,
+                    (d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
                 
-                coeffs.push_back(Triplet(
-                    i,
-                    i,
-                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
-                    ));
+                coeffs.push_back(Triplet(i, i,
+                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
             }
             else if (_faceTypes[face->index] == BCType::Dirichlet)
             {
@@ -109,20 +103,18 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
 
                 Point d = face->centroid - tet->centroid;
 
-                coeffs.push_back(Triplet(
-                    i,
-                    i,
-                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()
-                    ));
+                coeffs.push_back(Triplet(i, i,
+                    -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
 
                 _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) *
                     face->area * dirichletVal / d.Abs();
             }
             else if (_faceTypes[face->index] == BCType::Neumann)
             {
-                // TODO
+                // TODO: Take it from some BC struct
                 Point neumannGrad = Point({0.0, 0.0, 0.0});
                 
+                // TODO: Move this to Solve 
                 _rhs(i) -= neumannGrad.DotProduct(face->normal) * face->area;
             }
         }
@@ -165,9 +157,7 @@ vector<double> PoissonSolver::Solve(vector<double> rho) const
 
     Eigen::VectorXd rhs = _rhs;
     for (int i = 0; i < _mesh->tets.size(); i++)
-    {
         rhs(i) += (-rho[i] / eps0) * _mesh->tets[i]->volume;
-    }
 
     if (!_solutionIsUnique)
     {

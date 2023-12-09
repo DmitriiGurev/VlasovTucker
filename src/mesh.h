@@ -105,8 +105,6 @@ public:
     std::vector<Face*>  faces;
     std::vector<Tet*>   tets;
 
-    // std::unordered_map<Point*, std::vector<Tet*>> pointToTets;
-
 private:
     struct KeyTriple // key for the lookup table
     {

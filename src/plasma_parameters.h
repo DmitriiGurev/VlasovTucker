@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 #include "constants.h"
 #include "mesh.h"
@@ -46,4 +47,6 @@ private:
     const VelocityGrid<Tensor>* _vGrid;
 };
 
-std::vector<double> ConstDensity(const Mesh* mesh, double density);
+// TODO: Move it somewhere else?
+std::vector<double> ScalarField(const Mesh* mesh,
+    std::function<double(const Point&)> densityFunc);

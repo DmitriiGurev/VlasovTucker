@@ -54,9 +54,13 @@ void PlasmaParameters::SetPDF<PlasmaParameters::MaxwellPDF>(
     }
 }
 
-vector<double> ConstDensity(const Mesh* mesh, double density)
+vector<double> ScalarField(const Mesh* mesh, function<double(const Point&)> densityFunc)
 {
-    return vector<double>(mesh->tets.size(), density);
+    vector<double> density(mesh->tets.size());
+    for (int i = 0; i < mesh->tets.size(); i++)
+        density[i] = densityFunc(mesh->tets[i]->centroid);
+
+    return density;
 }
 
 vector<double> PlasmaParameters::Density() const

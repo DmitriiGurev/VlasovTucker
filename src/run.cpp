@@ -14,7 +14,7 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-    string meshFileName = "../data/meshes/rectangle_mixed.msh";
+    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
 
     Timer timer;
     timer.StartSection();
@@ -24,9 +24,9 @@ int main(int argc, char *argv[])
     cout << mesh.faces.size() << " faces, ";
     cout << mesh.tets.size() << " tets\n";
 
-    int nCells = 21;
-    double minVX = -5;
-    double maxVX = 5;
+    int nCells = 41;
+    double minVX = -7;
+    double maxVX = 7;
     VelocityGrid<Tensor> vGrid({ nCells, 3,    3   },
                                { maxVX,  0.1,  0.1 },
                                { minVX, -0.1, -0.1 });
@@ -56,6 +56,6 @@ int main(int argc, char *argv[])
     VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
 
     Solver solver(&mesh, &vGrid, &plasmaParams);
-    solver.writeStep = 50;
-    solver.Solve(10000);
+    // solver.writeStep = 200;
+    solver.Solve(100000);
 }

@@ -12,7 +12,7 @@ int main()
 {
     Timer timer;
 
-    Mesh mesh("../data/rect_box_1989.msh");
+    Mesh mesh("../data/meshes/rect_box_11102.msh");
     timer.PrintSectionTime("Reading the mesh");
     cout << mesh.points.size() << endl;
     cout << mesh.tets.size() << endl;
@@ -33,13 +33,16 @@ int main()
 
     auto rhoFunc = [](const Point& p) 
     {
-        return 2 * 4 * M_PI * M_PI * sin((p.coords[0] + p.coords[1]) * 2 * M_PI);
+        return 2 * 4 * pi * pi * sin((p.coords[0] + p.coords[1]) * 2 * pi);
     };
 
-    vector<double> rho = move(ScalarField(&mesh, rhoFunc));
+    vector<double> rho = ScalarField(&mesh, rhoFunc);
     VTK::WriteCellScalarData("rho", mesh, rho);
 
-    vector<double> phi = solver.Solve(rho);
+    for (int r = 0; r < 3; r++)
+        solver.Solve(rho);
+
+    vector<double> phi = solver.Potential();
     timer.PrintSectionTime("Solving the system");
 
     double phiAvg = 0;
@@ -64,7 +67,7 @@ int main()
     VTK::WriteCellScalarData("phi", mesh, phi);
     VTK::WriteCellScalarData("phi_analytical", mesh, phiAnalytical);
 
-    vector<array<double, 3>> field = solver.ElectricField(phi);
+    vector<array<double, 3>> field = solver.ElectricField();
     vector<array<double, 3>> fieldAnalytical;
     double errField = 0;
     for (int i = 0; i < mesh.tets.size(); i++)

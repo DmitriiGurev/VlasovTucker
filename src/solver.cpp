@@ -44,14 +44,9 @@ void Solver::Solve(int nIterations)
         for (int i = 0; i < rho.size(); i++) 
             rho[i] *= _plParams->charge;
 
-        // Smooth the charge density field (?)
-        Smoother smoother(_mesh);
-        smoother.factor = 0.7;
-        smoother.nRounds = 5;
-        // smoother.SmoothField(rho);
-
-        vector<double> phi = pSolver.Solve(rho);
-        vector<array<double, 3>> field = pSolver.ElectricField(phi);
+        pSolver.Solve(rho);
+        vector<double> phi = pSolver.Potential(); // For debug
+        vector<array<double, 3>> field = move(pSolver.ElectricField());
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the right-hand side\n";

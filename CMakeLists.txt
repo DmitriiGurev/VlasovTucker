@@ -17,7 +17,6 @@ add_library(
     ./src/plasma_parameters.cpp
     ./src/solver.cpp
     ./src/vtk.cpp
-    ./src/smoother.cpp
     # TODO: Add tucker.cpp
     )
 

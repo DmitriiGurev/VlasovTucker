@@ -16,7 +16,8 @@ Solver::Solver(const Mesh* mesh,
     // TODO: Set LogLevel in CMake
     _log = Log(LogLevel::AllText, "solver_");
     
-    _ComputeNormalTensors();
+    _PrecomputeNormalTensors();
+    _PrecomputeGradCoeffs();
 
     int memorySpent = _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6);
     _log << "The normal velocity tensors take up " << memorySpent << " MB of RAM\n"; 
@@ -67,9 +68,59 @@ void Solver::Solve(int nIterations)
             {
                 int adjTetInd = tet->adjTets[i]->index;
                 
-                rhs[tetInd] -= 0.5 * tet->faces[i]->area / tet->volume * 
-                    (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] + _plParams->pdf[tetInd]) -
-                    _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
+                Tensor upwindPDF = 0.5 * (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] +
+                    _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] -
+                    _plParams->pdf[tetInd]));
+
+                if (fluxScheme == FluxScheme::Upwind)
+                {
+                    // Upwind reconstruction: X_f = X_C
+                    rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
+                }
+                else 
+                {
+                    // Compute gradients for a second-order scheme
+                    array<Tensor, 3> grad = _Gradient(tet);
+                    array<Tensor, 3> adjGrad = _Gradient(tet->adjTets[i]);
+                    Point dist = tet->faces[i]->centroid - tet->centroid;
+                    Point adjDist = tet->faces[i]->centroid - tet->adjTets[i]->centroid;
+
+                    Tensor correction(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+                    correction.setZero();
+
+                    if (fluxScheme == FluxScheme::UpwindFROMM)
+                    {
+                        // FROMM reconstruction: X_f = X_C + (grad X)_C * d_Cf
+                        for (int k = 0; k < 3; k++)
+                        {
+                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
+                                adjGrad[k]) + (dist.coords[k] * grad[k])) - _vNormalAbs[tetInd][i] *
+                                ((adjDist.coords[k] * adjGrad[k]) - (dist.coords[k] * grad[k])));
+                        }
+
+                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
+                    }
+                    else if (fluxScheme == FluxScheme::UpwindQUICK)
+                    {
+                        // QUICK reconstruction: X_f = X_C + 0.5 ((grad X)_C + (grad X)_f) * d_Cf
+                        array<Tensor, 3> gradFace;
+                        double w = adjDist.Abs() / (adjDist.Abs() + dist.Abs());
+                        double adjW = dist.Abs() / (adjDist.Abs() + dist.Abs());
+                        for (int k = 0; k < 3; k++)
+                            gradFace[k] = w * grad[k] + adjW * adjGrad[k];
+
+                        for (int k = 0; k < 3; k++)
+                        {
+                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
+                                0.5 * (adjGrad[k] + gradFace[k])) + (dist.coords[k] *
+                                0.5 * (grad[k] + gradFace[k]))) - _vNormalAbs[tetInd][i] *
+                                ((adjDist.coords[k] * 0.5 * (adjGrad[k] + gradFace[k])) -
+                                (dist.coords[k] * 0.5 * (grad[k] + gradFace[k]))));
+                        }
+
+                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
+                    }
+                }
             }
         }
 
@@ -131,7 +182,7 @@ void Solver::Solve(int nIterations)
     }
 }
 
-void Solver::_ComputeNormalTensors()
+void Solver::_PrecomputeNormalTensors()
 {
     _vNormal = vector<array<Tensor, 4>>(_mesh->tets.size());
     _vNormalAbs = vector<array<Tensor, 4>>(_mesh->tets.size());
@@ -192,4 +243,98 @@ Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
     }
 
     return pdfDer;
+}
+
+void Solver::_PrecomputeGradCoeffs()
+{
+    for (auto tet : _mesh->tets)
+    {
+        array<Point, 4> dist;
+        
+        for (int i = 0; i < 4; i++)
+        {
+            // Remark: Works only for periodic cases
+            
+            Tet* adjTet = tet->adjTets[i];
+            Point d = (adjTet->centroid - tet->centroid);
+
+            int k = 0;
+            while (adjTet->adjTets[k] != tet)
+                k++;
+
+            dist[i] = d + tet->faces[i]->centroid - adjTet->faces[k]->centroid;
+
+            _distances[{tet, adjTet}] = dist[i];
+        }
+
+        array<double, 4> weights;
+        for (int i = 0; i < 4; i++)
+            weights[i] = 1 / dist[i].Abs();
+
+        Eigen::Matrix3d m;
+        for (int k = 0; k < 3; k++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                m(k, i) = 0;
+                for (int j = 0; j < 4; j++)
+                    m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
+            }
+        }
+        _gradMatrices.push_back(m);
+    }
+}
+
+array<Tensor, 3> Solver::_Gradient(Tet* tet) const {
+    array<Tensor, 3> grad;
+
+    int tetInd = tet->index;
+    
+    double a1 = _gradMatrices[tetInd](0, 0);
+    double a2 = _gradMatrices[tetInd](0, 1);
+    double a3 = _gradMatrices[tetInd](0, 2);
+    double b1 = _gradMatrices[tetInd](1, 0);
+    double b2 = _gradMatrices[tetInd](1, 1);
+    double b3 = _gradMatrices[tetInd](1, 2);
+    double c1 = _gradMatrices[tetInd](2, 0);
+    double c2 = _gradMatrices[tetInd](2, 1);
+    double c3 = _gradMatrices[tetInd](2, 2);
+
+    double e1 = a1 * b2 - a2 * b1;
+    double e2 = a1 * b3 - a3 * b1;
+    double f1 = a1 * c2 - a2 * c1;
+    double f2 = a1 * c3 - a3 * c1;
+
+    array<Point, 4> dist;
+    array<double, 4> weights;
+    for (int i = 0; i < 4; i++)
+    {
+        dist[i] = _distances.at({tet, tet->adjTets[i]}); 
+        weights[i] = 1 / dist[i].Abs();
+    }
+
+    array<Tensor, 3> rhs;
+    for (int k = 0; k < 3; k++)
+    {
+        rhs[k] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+        rhs[k].setZero();
+    }
+
+    for (int k = 0; k < 3; k++)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            rhs[k] += 2 * weights[i] * dist[i].coords[k] *
+                (_plParams->pdf[tet->adjTets[i]->index] - _plParams->pdf[tetInd]);
+        }
+    }
+
+    Tensor h1 = a1 * rhs[1] - b1 * rhs[0];
+    Tensor h2 = a1 * rhs[2] - c1 * rhs[0];
+
+    grad[2] = (h2 * e1 - h1 * f1) / (f2 * e1 - f1 * e2); 
+    grad[1] = h1 / e1 - e2 * grad[2] / e1;
+    grad[0] = rhs[0] / a1 - a2 * grad[1] / a1 - a3 * grad[2] / a1;
+
+    return grad;
 }

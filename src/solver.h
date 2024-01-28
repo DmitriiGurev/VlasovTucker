@@ -4,6 +4,7 @@
 #include "plasma_parameters.h"
 #include "typedefs.h"
 #include "log.h"
+#include "tucker.h"
 
 #include <vector>
 #include <map>
@@ -13,9 +14,7 @@
 
 // Flux reconstruction scheme
 enum class FluxScheme {
-    Upwind,      // 1st order
-    UpwindFROMM, // 2nd order
-    UpwindQUICK, // 2nd order (?)
+    Upwind, // 1st order
 };
 
 class Solver
@@ -45,11 +44,17 @@ private:
 
     PlasmaParameters* _plParams;
 
+    // std::vector<ParticleBC> _boundaryConditions;
+
     Log _log;
 
     // Normal velocity tensors
     std::vector<std::array<Tensor, 4>> _vNormal;
     std::vector<std::array<Tensor, 4>> _vNormalAbs;
+
+    // Compressed normal velocity tensors
+    std::vector<std::array<Tucker, 4>> _comprVNormal;
+    std::vector<std::array<Tucker, 4>> _comprVNormalAbs;
 
     // Coefficients for LSM gradient
     std::vector<Eigen::Matrix3d> _gradMatrices;

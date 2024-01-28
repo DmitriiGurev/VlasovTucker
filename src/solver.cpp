@@ -15,6 +15,9 @@ Solver::Solver(const Mesh* mesh,
 {
     // TODO: Set LogLevel in CMake
     _log = Log(LogLevel::AllText, "solver_");
+
+    // Set boundary conditions
+    // _boundaryConditions = std::vector<ParticleBC>(_mesh->faces.size());
     
     _PrecomputeNormalTensors();
     _PrecomputeGradCoeffs();
@@ -34,6 +37,13 @@ void Solver::Solve(int nIterations)
     PoissonSolver pSolver(_mesh);
     timer.PrintSectionTime("Poisson solver initialization");
 
+    vector<Tucker> comprPDF;
+    for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+        comprPDF.push_back(Tucker(_plParams->pdf[tetInd], 1e-6));
+
+    cout << "Size: " << _plParams->pdf[0].size() <<
+        " vs " << comprPDF[0].Size() << "\n";
+
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
     {
@@ -45,17 +55,20 @@ void Solver::Solve(int nIterations)
         for (int i = 0; i < rho.size(); i++) 
             rho[i] *= _plParams->charge;
 
-        pSolver.Solve(rho);
-        vector<double> phi = pSolver.Potential(); // For debug
-        vector<array<double, 3>> field = move(pSolver.ElectricField());
+        // pSolver.Solve(rho);
+        // vector<double> phi = pSolver.Potential(); // For debug
+        // vector<array<double, 3>> field = move(pSolver.ElectricField());
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the right-hand side\n";
         vector<Tensor> rhs(_mesh->tets.size());
+        vector<Tucker> comprRHS;
         for (auto tet : _mesh->tets)
         {
             rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
             rhs[tet->index].setZero();
+
+            comprRHS.push_back(Tucker(rhs[tet->index], 1e-6));
         }
 
         _log << Indent(2) << "Boltzmann part\n";
@@ -68,78 +81,42 @@ void Solver::Solve(int nIterations)
             {
                 int adjTetInd = tet->adjTets[i]->index;
                 
-                Tensor upwindPDF = 0.5 * (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] +
-                    _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] -
-                    _plParams->pdf[tetInd]));
+                // Tensor upwindPDF = 0.5 * (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] +
+                //     _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] -
+                //     _plParams->pdf[tetInd]));
+
+                Tucker comprUpwindPDF = 0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
+                    comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] * (comprPDF[adjTetInd] -
+                    comprPDF[tetInd]));
 
                 if (fluxScheme == FluxScheme::Upwind)
                 {
                     // Upwind reconstruction: X_f = X_C
-                    rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
+                    // rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
+
+                    comprRHS[tetInd] -= tet->faces[i]->area / tet->volume * comprUpwindPDF;
                 }
-                else 
-                {
-                    // Compute gradients for a second-order scheme
-                    array<Tensor, 3> grad = _Gradient(tet);
-                    array<Tensor, 3> adjGrad = _Gradient(tet->adjTets[i]);
-                    Point dist = tet->faces[i]->centroid - tet->centroid;
-                    Point adjDist = tet->faces[i]->centroid - tet->adjTets[i]->centroid;
 
-                    Tensor correction(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-                    correction.setZero();
-
-                    if (fluxScheme == FluxScheme::UpwindFROMM)
-                    {
-                        // FROMM reconstruction: X_f = X_C + (grad X)_C * d_Cf
-                        for (int k = 0; k < 3; k++)
-                        {
-                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
-                                adjGrad[k]) + (dist.coords[k] * grad[k])) - _vNormalAbs[tetInd][i] *
-                                ((adjDist.coords[k] * adjGrad[k]) - (dist.coords[k] * grad[k])));
-                        }
-
-                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
-                    }
-                    else if (fluxScheme == FluxScheme::UpwindQUICK)
-                    {
-                        // QUICK reconstruction: X_f = X_C + 0.5 ((grad X)_C + (grad X)_f) * d_Cf
-                        array<Tensor, 3> gradFace;
-                        double w = adjDist.Abs() / (adjDist.Abs() + dist.Abs());
-                        double adjW = dist.Abs() / (adjDist.Abs() + dist.Abs());
-                        for (int k = 0; k < 3; k++)
-                            gradFace[k] = w * grad[k] + adjW * adjGrad[k];
-
-                        for (int k = 0; k < 3; k++)
-                        {
-                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
-                                0.5 * (adjGrad[k] + gradFace[k])) + (dist.coords[k] *
-                                0.5 * (grad[k] + gradFace[k]))) - _vNormalAbs[tetInd][i] *
-                                ((adjDist.coords[k] * 0.5 * (adjGrad[k] + gradFace[k])) -
-                                (dist.coords[k] * 0.5 * (grad[k] + gradFace[k]))));
-                        }
-
-                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
-                    }
-                }
+                comprRHS[tetInd] = Tucker(comprRHS[tetInd].Reconstructed(), 1e-6);
             }
         }
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        _log << Indent(2) << "Vlasov part\n";
+        // _log << Indent(2) << "Vlasov part\n";
 
-        #pragma omp parallel for 
-        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        {
-            Tet* tet = _mesh->tets[tetInd];
+        // #pragma omp parallel for 
+        // for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+        // {
+        //     Tet* tet = _mesh->tets[tetInd];
 
-            // TODO: Add a constant electric field
-            for (int k = 0; k < 3; k++)
-            {
-                double forceComponent = _plParams->charge * field[tetInd][k];
-                rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k);
-            }
-        }
+        //     // TODO: Add a constant electric field
+        //     for (int k = 0; k < 3; k++)
+        //     {
+        //         double forceComponent = _plParams->charge * field[tetInd][k];
+        //         rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k); // TODO: /m?
+        //     }
+        // }
         
         timer.PrintSectionTime(Indent(2) + "Done");
 
@@ -148,36 +125,58 @@ void Solver::Solve(int nIterations)
         #pragma omp parallel for 
         for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
         {
-            Tet* tet = _mesh->tets[tetInd];
-            _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
+            // Tet* tet = _mesh->tets[tetInd];
+            // _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
+
+            comprPDF[tetInd] += timeStep * comprRHS[tetInd];
+            comprPDF[tetInd] = Tucker(comprPDF[tetInd].Reconstructed(), 1e-6);
         }
+
+        // _log << Indent(1) << "Difference: " <<
+        //     (_plParams->pdf[0] - comprPDF[0].Reconstructed()).square().sum().sqrt() << "\n";
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        double nSumm = 0.0;
-        vector<double> density = _plParams->Density();
-        for (auto tet : _mesh->tets)
-            nSumm += density[tet->index];
+        // double nSumm = 0.0;
+        // vector<double> density = _plParams->Density();
+        // for (auto tet : _mesh->tets)
+        //     nSumm += density[tet->index];
 
         _log << Indent(1) << "Time: " << it * timeStep << "\n";
-        _log << Indent(1) << "Total density: " << nSumm << "\n";
+        // _log << Indent(1) << "Total density: " << nSumm << "\n";
 
-        if (abs(nSumm) > 1e8)
-            throw runtime_error("Solution diverged");
+        // if (abs(nSumm) > 1e8)
+        //     throw runtime_error("Solution diverged");
 
         if (it % writeStep == 0)
         {
+            for (int i = 0; i < _mesh->tets.size(); i++)
+            {
+                _plParams->pdf[i] = comprPDF[i].Reconstructed();
+            }
+            vector<double> density = _plParams->Density();
+
             string densityFile = "solution/density/density_" + to_string(it / writeStep);
             VTK::WriteCellScalarData(densityFile, *_mesh, density);
 
-            string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
-            VTK::WriteCellScalarData(phiFile, *_mesh, phi);
+            // string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
+            // VTK::WriteCellScalarData(phiFile, *_mesh, phi);
 
-            string fieldFile = "solution/field/e_" + to_string(it / writeStep);
-            VTK::WriteCellVectorData(fieldFile, *_mesh, field);
+            // string fieldFile = "solution/field/e_" + to_string(it / writeStep);
+            // VTK::WriteCellVectorData(fieldFile, *_mesh, field);
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
-            VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
+            // VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
+            VTK::WriteDistribution(distrFile, *_vGrid, comprPDF[_mesh->tets.size() / 2].Reconstructed());
+
+            // string analytFile = "solution/analytical/analytical_" + to_string(it / writeStep);
+            // auto rhoFunc = [it, timeStep](const Point& p)
+            // { 
+            //     return 10 + 0.2 * sin(1 * (p.coords[0] - it * timeStep) * (2 * pi));
+            //     // return 10 + 0.2 * (((p.coords[0] - it * timeStep < 0.2) &&
+            //     //     (p.coords[0] - it * timeStep > 0.0)) ? 1 : 0);
+            // };
+            // VTK::WriteCellScalarData(analytFile, *_mesh, ScalarField(_mesh, rhoFunc));
         }
     }
 }
@@ -186,6 +185,9 @@ void Solver::_PrecomputeNormalTensors()
 {
     _vNormal = vector<array<Tensor, 4>>(_mesh->tets.size());
     _vNormalAbs = vector<array<Tensor, 4>>(_mesh->tets.size());
+
+    _comprVNormal = vector<array<Tucker, 4>>(_mesh->tets.size());
+    _comprVNormalAbs = vector<array<Tucker, 4>>(_mesh->tets.size());
 
     for (auto tet : _mesh->tets)
     {
@@ -198,6 +200,13 @@ void Solver::_PrecomputeNormalTensors()
                                   normal.coords[2] * _vGrid->v[2]; 
 
             _vNormalAbs[tetInd][i] = _vNormal[tetInd][i].abs();
+
+            _comprVNormal[tetInd][i] = Tucker(_vNormal[tetInd][i], 1e-6);
+            _comprVNormalAbs[tetInd][i] = Tucker(_vNormalAbs[tetInd][i], 1e-6);
+
+            // VTK::WriteDistribution("uncompr", *_vGrid, _vNormalAbs[tetInd][i]);
+            // VTK::WriteDistribution("compr", *_vGrid, _comprVNormalAbs[tetInd][i].Reconstructed());
+            // exit(1);
         }
     }
 }
@@ -254,7 +263,7 @@ void Solver::_PrecomputeGradCoeffs()
         for (int i = 0; i < 4; i++)
         {
             // Remark: Works only for periodic cases
-            
+
             Tet* adjTet = tet->adjTets[i];
             Point d = (adjTet->centroid - tet->centroid);
 

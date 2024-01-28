@@ -48,17 +48,18 @@ public:
 
 	void Recompress(double eps = 1e-14, int rmax = 1e+6);
 
-	friend std::ostream& operator <<(std::ostream& out, const Tucker& t);
+	friend std::ostream& operator<<(std::ostream& out, const Tucker& t);
 
-	Tucker& operator +=(const Tucker& t);
+	Tucker& operator+=(const Tucker& t);
+	Tucker& operator-=(const Tucker& t);
 
-	friend Tucker operator +(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator -(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator *(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator *(const double alpha, const Tucker& t);
-	friend Tucker operator *(const Tucker& t, const double alpha);
-	friend Tucker operator /(Tucker t1, const Tucker& t2);
-	friend Tucker operator -(const Tucker& t);
+	friend Tucker operator+(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator-(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator*(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator*(const double alpha, const Tucker& t);
+	friend Tucker operator*(const Tucker& t, const double alpha);
+	friend Tucker operator/(Tucker t1, const Tucker& t2);
+	friend Tucker operator-(const Tucker& t);
 
 	friend Tucker Reflection(Tucker t, int axis);
 

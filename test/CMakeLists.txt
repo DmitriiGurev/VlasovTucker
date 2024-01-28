@@ -4,4 +4,4 @@
 add_executable(poisson_test ./poisson_test.cpp)
 target_link_libraries(poisson_test vlasov_tucker libmshio)
 
-# add_executable(tucker_test ../src/tucker.cpp ./tucker_test.cpp)
+add_executable(tucker_test ../src/tucker.cpp ./tucker_test.cpp)

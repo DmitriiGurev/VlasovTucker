@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
+add_compile_options(-mincoming-stack-boundary=2)
 
 project(VlasovTucker)
 
@@ -17,7 +18,7 @@ add_library(
     ./src/plasma_parameters.cpp
     ./src/solver.cpp
     ./src/vtk.cpp
-    # TODO: Add tucker.cpp
+    ./src/tucker.cpp
     )
 
 find_package(OpenMP)

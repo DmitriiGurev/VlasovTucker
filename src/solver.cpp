@@ -41,8 +41,20 @@ void Solver::Solve(int nIterations)
     for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
         comprPDF.push_back(Tucker(_plParams->pdf[tetInd], 1e-6));
 
-    cout << "Size: " << _plParams->pdf[0].size() <<
-        " vs " << comprPDF[0].Size() << "\n";
+    // Print compression info
+    cout << "PDF size resuction: " << _plParams->pdf[0].size() << " vs " << comprPDF[0].Size();
+    double reduction = 0;
+    for (auto tet : _mesh->tets)
+        reduction += _plParams->pdf[0].size() / (double)comprPDF[0].Size();
+    reduction /= _mesh->tets.size();
+    cout << " (" << reduction << " times on average)\n";
+    cout << "Normal speed size resuction: " << _vNormal[0][0].size() << " vs " <<
+        _comprVNormal[0][0].Size();
+    reduction = 0;
+    for (auto tet : _mesh->tets)
+        reduction += _vNormal[0][0].size() / (double)_comprVNormal[0][0].Size();
+    reduction /= _mesh->tets.size();
+    cout << " (" << reduction << " times on average)\n";
 
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
@@ -85,19 +97,31 @@ void Solver::Solve(int nIterations)
                 //     _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] -
                 //     _plParams->pdf[tetInd]));
 
-                Tucker comprUpwindPDF = 0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
-                    comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] * (comprPDF[adjTetInd] -
-                    comprPDF[tetInd]));
+                // Upwind reconstruction: X_f = X_C
+                // rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
 
-                if (fluxScheme == FluxScheme::Upwind)
-                {
-                    // Upwind reconstruction: X_f = X_C
-                    // rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
+                // comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
+                //     0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
+                //     comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] *
+                //     (comprPDF[adjTetInd] - comprPDF[tetInd]));
 
-                    comprRHS[tetInd] -= tet->faces[i]->area / tet->volume * comprUpwindPDF;
-                }
+                // Remark: As the normal speed tensors have large ranks, we probably should
+                // call recompress after all operations in the following expression
+                // TODO: Add a CompressedTensor class that would automatically recompress after
+                // each operator (?)
 
-                comprRHS[tetInd] = Tucker(comprRHS[tetInd].Reconstructed(), 1e-6);
+                comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
+                    0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
+                    comprPDF[tetInd]).Recompress(1e-6) - _comprVNormalAbs[tetInd][i] *
+                    (comprPDF[adjTetInd] - comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6);
+                comprRHS[tetInd].Recompress(1e-6);
+
+                // comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
+                //     0.5 * ((_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
+                //     comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6) - 
+                //     (_comprVNormalAbs[tetInd][i] * (comprPDF[adjTetInd] -
+                //     comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6)).Recompress(1e-6);
+                // comprRHS[tetInd].Recompress(1e-6);
             }
         }
 
@@ -129,7 +153,7 @@ void Solver::Solve(int nIterations)
             // _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
 
             comprPDF[tetInd] += timeStep * comprRHS[tetInd];
-            comprPDF[tetInd] = Tucker(comprPDF[tetInd].Reconstructed(), 1e-6);
+            comprPDF[tetInd].Recompress(1e-6);
         }
 
         // _log << Indent(1) << "Difference: " <<
@@ -217,39 +241,41 @@ Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
 
     Tensor pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
 
-    array<int, 3> i;
-    for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)
-    {
-        for (i[1] = 0; i[1] < _vGrid->nCells[1]; i[1]++)
-        {
-            for (i[2] = 0; i[2] < _vGrid->nCells[2]; i[2]++)
-            {
-                array<int, 3> iPlus = {i[0], i[1], i[2]};
-                array<int, 3> iMinus = {i[0], i[1], i[2]};
+    // array<int, 3> i;
+    // for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)
+    // {
+    //     for (i[1] = 0; i[1] < _vGrid->nCells[1]; i[1]++)
+    //     {
+    //         for (i[2] = 0; i[2] < _vGrid->nCells[2]; i[2]++)
+    //         {
+    //             array<int, 3> iPlus = {i[0], i[1], i[2]};
+    //             array<int, 3> iMinus = {i[0], i[1], i[2]};
 
-                if (i[ind] == 0)
-                {
-                    iPlus[ind] = 1;
-                    iMinus[ind] = _vGrid->nCells[ind] - 1;
-                }
-                else if (i[ind] == _vGrid->nCells[ind] - 1)
-                {
-                    iPlus[ind] = 0;
-                    iMinus[ind] = _vGrid->nCells[ind] - 2;
-                }
-                else
-                {
-                    iPlus[ind] += 1;
-                    iMinus[ind] -= 1;
-                }
+    //             if (i[ind] == 0)
+    //             {
+    //                 iPlus[ind] = 1;
+    //                 iMinus[ind] = _vGrid->nCells[ind] - 1;
+    //             }
+    //             else if (i[ind] == _vGrid->nCells[ind] - 1)
+    //             {
+    //                 iPlus[ind] = 0;
+    //                 iMinus[ind] = _vGrid->nCells[ind] - 2;
+    //             }
+    //             else
+    //             {
+    //                 iPlus[ind] += 1;
+    //                 iMinus[ind] -= 1;
+    //             }
 
-                pdfDer(i[0], i[1], i[2]) = (
-                    _plParams->pdf[tetInd](iPlus[0], iPlus[1], iPlus[2]) - 
-                    _plParams->pdf[tetInd](iMinus[0], iMinus[1], iMinus[2])
-                    ) / (2 * _vGrid->step[ind]);
-            }
-        }
-    }
+    //             pdfDer(i[0], i[1], i[2]) = (
+    //                 _plParams->pdf[tetInd](iPlus[0], iPlus[1], iPlus[2]) - 
+    //                 _plParams->pdf[tetInd](iMinus[0], iMinus[1], iMinus[2])
+    //                 ) / (2 * _vGrid->step[ind]);
+    //         }
+    //     }
+    // }
+
+    
 
     return pdfDer;
 }

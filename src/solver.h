@@ -12,11 +12,6 @@
 
 // TODO: Add BC
 
-// Flux reconstruction scheme
-enum class FluxScheme {
-    Upwind, // 1st order
-};
-
 class Solver
 {
 public:
@@ -35,8 +30,6 @@ private:
 
 public:
     int writeStep = INT_MAX;
-
-    FluxScheme fluxScheme = FluxScheme::Upwind;
 
 private:
     const Mesh* _mesh;

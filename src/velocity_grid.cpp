@@ -4,9 +4,9 @@ using namespace std;
 
 template <>
 VelocityGrid<Tensor>::VelocityGrid(array<int, 3> nCells,
-                                   array<double, 3> maxV,
-                                   array<double, 3> minV) :
-    nCells(nCells), maxV(maxV), minV(minV)
+                                   array<double, 3> minV,
+                                   array<double, 3> maxV) :
+    nCells(nCells), minV(minV), maxV(maxV)
 {
     nCellsTotal = nCells[0] * nCells[1] * nCells[2];
 

@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
+# add_compile_options(-O3 -DNDEBUG -fno-math-errno -march=native)
+add_compile_options(-O3 -fno-math-errno -march=native)
 add_compile_options(-mincoming-stack-boundary=2)
 
 project(VlasovTucker)

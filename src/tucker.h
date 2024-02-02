@@ -3,6 +3,7 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Dense>
 
+// Tensor-matrix conversions
 template<typename Scalar, int rank, typename sizeType>
 Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
 TensorToMatrix(const Eigen::Tensor<Scalar, rank>& tensor,
@@ -25,7 +26,7 @@ public:
 
 	// Compress a tensor with a given accuracy
 	Tucker(const Eigen::Tensor<double, 3>& tensor,
-		   double eps = 1e-14,
+		   double eps = 0,
 		   int rmax = 1e+6);
 
 	// Create a rank-one tensor from given factors
@@ -52,12 +53,14 @@ public:
 
 	Tucker& operator+=(const Tucker& t);
 	Tucker& operator-=(const Tucker& t);
+	Tucker& operator*=(const Tucker& t);
+	Tucker& operator*=(double d);
 
 	friend Tucker operator+(const Tucker& t1, const Tucker& t2);
 	friend Tucker operator-(const Tucker& t1, const Tucker& t2);
 	friend Tucker operator*(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator*(const double alpha, const Tucker& t);
-	friend Tucker operator*(const Tucker& t, const double alpha);
+	friend Tucker operator*(double d, const Tucker& t);
+	friend Tucker operator*(const Tucker& t, double d);
 	friend Tucker operator/(Tucker t1, const Tucker& t2);
 	friend Tucker operator-(const Tucker& t);
 

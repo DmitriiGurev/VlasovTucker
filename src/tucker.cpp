@@ -1,4 +1,4 @@
-#include "tucker.h"
+﻿#include "tucker.h"
 
 #include <iostream>
 #include <cmath>
@@ -240,6 +240,18 @@ Tucker& Tucker::operator-=(const Tucker& t)
     return *this;
 }
 
+Tucker& Tucker::operator*=(const Tucker& t)
+{
+    *this = *this * t;
+    return *this;
+}
+
+Tucker& Tucker::operator*=(double d)
+{
+    *this = *this * d;
+    return *this;
+}
+
 Tucker operator-(const Tucker& t1, const Tucker& t2)
 {
     return t1 + (-1.0) * t2;
@@ -288,7 +300,7 @@ Tucker operator*(const Tucker& t1, const Tucker& t2)
     return result;
 }
 
-Tucker operator*(const double alpha, const Tucker& t)
+Tucker operator*(double d, const Tucker& t)
 {
     Tucker result = t;
     for (int i0 = 0; i0 < t._r[0]; i0++)
@@ -297,16 +309,16 @@ Tucker operator*(const double alpha, const Tucker& t)
         {
             for (int i2 = 0; i2 < t._r[2]; i2++)
             {
-                result._core(i0, i1, i2) *= alpha;
+                result._core(i0, i1, i2) *= d;
             }
         }
     }
     return result;
 }
 
-Tucker operator*(const Tucker& t, const double alpha)
+Tucker operator*(const Tucker& t, double d)
 {
-    return alpha * t;
+    return d * t;
 }
 
 Tucker operator/(Tucker t1, const Tucker& t2)
@@ -469,7 +481,6 @@ Tensor<double, 3> Folding(int I0, int I1, int I2,
 }
 
 void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
-                    //   vector<MatrixXd>& u,
                       double eps,
                       int rmax)
 {
@@ -483,9 +494,9 @@ void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
 
         vector<int> colsToKeep;
         int r = 0;
-        for (int j = 0; j < _u[i].cols(); ++j)
+        for (int j = 0; j < _u[i].cols(); j++)
         {
-            if (SV(j) > threshold && r < rmax)
+            if ((r == 0) || (SV(j) > threshold && r < rmax))
             {
                 colsToKeep.push_back(j);
                 r++;

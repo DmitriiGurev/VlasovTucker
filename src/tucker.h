@@ -46,7 +46,7 @@ public:
 
 	Tucker Abs() const;
 
-	void Recompress(double eps = 1e-14, int rmax = 1e+6);
+	Tucker& Recompress(double eps = 0, int rmax = 1e+6);
 
 	friend std::ostream& operator<<(std::ostream& out, const Tucker& t);
 

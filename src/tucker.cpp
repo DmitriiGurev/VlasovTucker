@@ -1,4 +1,4 @@
-﻿#include "tucker.h"
+#include "tucker.h"
 
 #include <iostream>
 #include <cmath>
@@ -145,8 +145,7 @@ double Tucker::Norm() const
     return sqrt(sumSq);
 }
 
-// Remark: Doesn't work
-void Tucker::Recompress(double eps, int rmax)
+Tucker& Tucker::Recompress(double eps, int rmax)
 {
     vector<MatrixXd> Q(3);
     vector<MatrixXd> R(3);
@@ -164,7 +163,7 @@ void Tucker::Recompress(double eps, int rmax)
     }
 
     MatrixXd A0 = R[0] * Unfolding(_core, 0) * kroneckerProduct(R[1], R[2]).transpose();
-    Tensor<double, 3> aux = Folding(_n[0], _n[1], _n[2], A0, 0);
+    Tensor<double, 3> aux = Folding(_r[0], _r[1], _r[2], A0, 0);
 
     Tucker auxTucker(aux, eps, rmax);
 
@@ -176,6 +175,8 @@ void Tucker::Recompress(double eps, int rmax)
     _r = {(int)_u[0].cols(),
           (int)_u[1].cols(),
           (int)_u[2].cols()};
+
+    return *this;
 }
 
 std::ostream& operator<<(std::ostream& out, const Tucker& tucker)

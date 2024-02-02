@@ -23,7 +23,6 @@ int main(int argc, char *argv[])
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
 
-    // VelocityGrid<Tensor> vGrid({21, 9, 9}, {-2, -0.1, -0.1}, {2, 0.1, 0.1});
     VelocityGrid<Tensor> vGrid({13, 11, 9}, {-2, -2, -2}, {2, 2, 2});
 
     PlasmaParameters plasmaParams(&mesh, &vGrid);

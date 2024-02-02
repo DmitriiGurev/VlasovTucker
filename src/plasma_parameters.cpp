@@ -13,6 +13,7 @@ void PlasmaParameters::SetPDF<PlasmaParameters::MaxwellPDF>(
     int n2 = _vGrid->nCells[2];
 
     Tensor v(n0, n1, n2);
+    // TODO: Do it in parallel
     for (auto tet : _mesh->tets)
     {
         if (paramsPDF.temperature != 0.0)
@@ -71,6 +72,7 @@ vector<double> PlasmaParameters::Density() const
     int n1 = _vGrid->nCells[1];
     int n2 = _vGrid->nCells[2];
 
+    // TODO: Do it in parallel
     for (int i = 0; i < _mesh->tets.size(); i++)
     {
         double density = 0;

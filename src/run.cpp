@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
 
-    VelocityGrid<Tensor> vGrid({13, 11, 9}, {-2, -2, -2}, {2, 2, 2});
+    VelocityGrid<Tensor> vGrid({11, 3, 3}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
     PlasmaParameters plasmaParams(&mesh, &vGrid);
     plasmaParams.species = ParticleType::Custom;
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 
     paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
-    paramsPDF.mostProbableV = {1, 0, 0};
+    paramsPDF.mostProbableV = {0, 0, 0};
 
     plasmaParams.SetPDF<PlasmaParameters::MaxwellPDF>(paramsPDF);
 
@@ -44,6 +44,8 @@ int main(int argc, char *argv[])
     VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
 
     Solver solver(&mesh, &vGrid, &plasmaParams);
-    solver.writeStep = 100;
+    solver.comprPrecision = 1e-6;
+
+    solver.writeStep = 10;
     solver.Solve(100000);
 }

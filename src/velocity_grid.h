@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Eigen/Dense>
+
 #include <array>
 
 #include "typedefs.h"
@@ -23,4 +25,7 @@ struct VelocityGrid
     std::array<double, 3> minV;
 
     std::array<TensorType, 3> v;
+
+    // Central difference matrices
+    std::array<Eigen::MatrixXd, 3> d;
 };

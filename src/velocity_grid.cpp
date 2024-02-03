@@ -1,5 +1,7 @@
 #include "velocity_grid.h"
 
+#include <iostream>
+
 using namespace std;
 
 template <>
@@ -30,6 +32,23 @@ VelocityGrid<Tensor>::VelocityGrid(array<int, 3> nCells,
                 } 
             } 
         } 
+    }
+
+    // Compute the central difference matrices
+    for (int j = 0; j < 3; j++)
+    {
+        d[j] = Eigen::MatrixXd::Zero(nCells[j], nCells[j]);
+        d[j](0, 1) = 1;
+        d[j](0, nCells[j] - 1) = -1;
+        for (int i = 1; i < nCells[j] - 1; i++)
+        {
+            d[j](i, i + 1) = 1;
+            d[j](i, i - 1) = -1;
+        }
+        d[j](nCells[j] - 1, 0) = 1;
+        d[j](nCells[j] - 1, nCells[j] - 2) = -1;
+
+        d[j] /= 2 * step[j];
     }
 }
 

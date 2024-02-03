@@ -47,20 +47,18 @@ Tucker::Tucker(const Tensor<double, 3>& tensor,
     _core = Folding(_r[0], _r[1], _r[2], S0, 0);
 }
 
-// Create a rank-one tensor from given factors
-Tucker::Tucker(const std::vector<Eigen::VectorXd>& u)
+// Create a tensor with given core and matrices U
+Tucker::Tucker(const Eigen::Tensor<double, 3>& core,
+               const std::array<Eigen::MatrixXd, 3>& u) :
+    _core(core), _u(u) 
 {
-    _u[0] = MatrixXd(u[0]);
-    _u[1] = MatrixXd(u[1]);
-    _u[2] = MatrixXd(u[2]);
+    _n = {(int)_u[0].rows(),
+          (int)_u[1].rows(),
+          (int)_u[2].rows()};
 
-    _n = {(int)u[0].size(),
-          (int)u[1].size(),
-          (int)u[2].size()};
-    _r = {1, 1, 1};
-
-    _core = Tensor<double, 3>(1, 1, 1);
-    _core.setConstant(1);
+    _r = {(int)_core.dimension(0),
+          (int)_core.dimension(1),
+          (int)_core.dimension(2)};
 }
 
 int Tucker::Size() const
@@ -68,17 +66,17 @@ int Tucker::Size() const
     return _core.size() + _u[0].size() + _u[1].size() + _u[2].size(); 
 }
 
-vector<int> Tucker::Dimensions() const
+array<int, 3> Tucker::Dimensions() const
 {
     return _n;
 }
 
-vector<int> Tucker::Ranks() const
+array<int, 3> Tucker::Ranks() const
 {
     return _r;
 }
 
-vector<MatrixXd> Tucker::U() const
+array<MatrixXd, 3> Tucker::U() const
 {
     return _u;
 }
@@ -321,37 +319,6 @@ Tucker operator*(const Tucker& t, double d)
     return d * t;
 }
 
-Tucker operator/(Tucker t1, const Tucker& t2)
-{
-    if(t2.Ranks() != vector<int>{1, 1, 1})
-        throw std::invalid_argument("Invalid ranks in divide");
-
-    if (t2.Dimensions() != t1._n)
-        throw std::invalid_argument("Invalid dimensions in divide");
-
-    for (int i = 0; i < t1._r[0]; i++)
-    {
-        for (int j = 0; j < t1._r[1]; j++)
-        {
-            for (int k = 0; k < t1._r[2]; k++)
-            {
-                t1._core(i, j, k) /= t2._core(0, 0, 0);
-            }
-        }
-    }
-
-    for (int i = 0; i < t1._n[0]; i++)
-        t1._u[0].row(i) /= t2._u[0](i);
-
-    for (int j = 0; j < t1._n[1]; j++)
-        t1._u[1].row(j) /= t2._u[1](j);
-
-    for (int k = 0; k < t1._n[2]; k++)
-        t1._u[2].row(k) /= t2._u[2](k);
-
-    return t1;
-}
-
 Tucker operator-(const Tucker& t)
 {
     return (-1.0) * t;
@@ -370,13 +337,14 @@ Tucker Reflection(Tucker t, int axis)
 template<typename Scalar, int rank, typename sizeType>
 Map<const Matrix<Scalar, Dynamic, Dynamic>>
 TensorToMatrix(const Tensor<Scalar, rank>& tensor,
-                       const sizeType rows,
-                       const sizeType cols)
+               const sizeType rows,
+               const sizeType cols)
 {
     return Map<const Matrix<Scalar, Dynamic, Dynamic>>(tensor.data(), rows, cols);
 }
 
-MatrixXd Unfolding(const Tensor<double, 3>& tensor, int index)
+MatrixXd Unfolding(const Tensor<double, 3>& tensor,
+                   int index)
 {
     int I0 = tensor.dimension(0);
     int I1 = tensor.dimension(1);
@@ -481,8 +449,8 @@ Tensor<double, 3> Folding(int I0, int I1, int I2,
 }
 
 void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
-                      double eps,
-                      int rmax)
+                       double eps,
+                       int rmax)
 {
     for (int i : {0, 1, 2})
     {

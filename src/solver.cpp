@@ -16,6 +16,9 @@ Solver::Solver(const Mesh* mesh,
     // TODO: Set LogLevel in CMake
     _log = Log(LogLevel::AllText, "solver_");
 
+    _maxRank = *max_element(_vGrid->nCells.begin(), _vGrid->nCells.end());
+    cout << "The maximum rank is " << _maxRank << "\n";
+
     // Set boundary conditions
     // _boundaryConditions = std::vector<ParticleBC>(_mesh->faces.size());
     
@@ -39,20 +42,27 @@ void Solver::Solve(int nIterations)
 
     vector<Tucker> comprPDF;
     for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        comprPDF.push_back(Tucker(_plParams->pdf[tetInd], 1e-6));
+        comprPDF.push_back(Tucker(_plParams->pdf[tetInd], comprPrecision, _maxRank));
 
     // Print compression info
-    cout << "PDF size resuction: " << _plParams->pdf[0].size() << " vs " << comprPDF[0].Size();
+    cout << "PDF size reduction: " << _plParams->pdf[0].size() << " vs " << comprPDF[0].Size();
     double reduction = 0;
     for (auto tet : _mesh->tets)
         reduction += _plParams->pdf[0].size() / (double)comprPDF[0].Size();
     reduction /= _mesh->tets.size();
     cout << " (" << reduction << " times on average)\n";
-    cout << "Normal speed size resuction: " << _vNormal[0][0].size() << " vs " <<
+    cout << "Normal speed size reduction: " << _vNormal[0][0].size() << " vs " <<
         _comprVNormal[0][0].Size();
     reduction = 0;
     for (auto tet : _mesh->tets)
         reduction += _vNormal[0][0].size() / (double)_comprVNormal[0][0].Size();
+    reduction /= _mesh->tets.size();
+    cout << " (" << reduction << " times on average)\n";
+    cout << "Absolute normal speed size reduction: " << _vNormalAbs[0][0].size() << " vs " <<
+        _comprVNormalAbs[0][0].Size();
+    reduction = 0;
+    for (auto tet : _mesh->tets)
+        reduction += _vNormalAbs[0][0].size() / (double)_comprVNormalAbs[0][0].Size();
     reduction /= _mesh->tets.size();
     cout << " (" << reduction << " times on average)\n";
 
@@ -63,13 +73,18 @@ void Solver::Solve(int nIterations)
         _log << "\n" << "Iteration #" << it << "\n";
         
         _log << Indent(1) << "Compute the electric field\n";
+
+        // Remark: Temporary
+        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+            _plParams->pdf[tetInd] = comprPDF[tetInd].Reconstructed();
+
         vector<double> rho = _plParams->Density();
         for (int i = 0; i < rho.size(); i++) 
             rho[i] *= _plParams->charge;
 
-        // pSolver.Solve(rho);
+        pSolver.Solve(rho);
         // vector<double> phi = pSolver.Potential(); // For debug
-        // vector<array<double, 3>> field = move(pSolver.ElectricField());
+        vector<array<double, 3>> field = move(pSolver.ElectricField());
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the right-hand side\n";
@@ -80,7 +95,7 @@ void Solver::Solve(int nIterations)
             rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
             rhs[tet->index].setZero();
 
-            comprRHS.push_back(Tucker(rhs[tet->index], 1e-6));
+            comprRHS.push_back(Tucker(rhs[tet->index], comprPrecision, _maxRank));
         }
 
         _log << Indent(2) << "Boltzmann part\n";
@@ -100,47 +115,34 @@ void Solver::Solve(int nIterations)
                 // Upwind reconstruction: X_f = X_C
                 // rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
 
-                // comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
-                //     0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
-                //     comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] *
-                //     (comprPDF[adjTetInd] - comprPDF[tetInd]));
-
-                // Remark: As the normal speed tensors have large ranks, we probably should
-                // call recompress after all operations in the following expression
-                // TODO: Add a CompressedTensor class that would automatically recompress after
-                // each operator (?)
-
                 comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
                     0.5 * (_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
-                    comprPDF[tetInd]).Recompress(1e-6) - _comprVNormalAbs[tetInd][i] *
-                    (comprPDF[adjTetInd] - comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6);
-                comprRHS[tetInd].Recompress(1e-6);
+                    comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] *
+                    (comprPDF[adjTetInd] - comprPDF[tetInd]));
 
-                // comprRHS[tetInd] -= tet->faces[i]->area / tet->volume *
-                //     0.5 * ((_comprVNormal[tetInd][i] * (comprPDF[adjTetInd] +
-                //     comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6) - 
-                //     (_comprVNormalAbs[tetInd][i] * (comprPDF[adjTetInd] -
-                //     comprPDF[tetInd]).Recompress(1e-6)).Recompress(1e-6)).Recompress(1e-6);
-                // comprRHS[tetInd].Recompress(1e-6);
+                comprRHS[tetInd].Recompress(comprPrecision, _maxRank);
             }
         }
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        // _log << Indent(2) << "Vlasov part\n";
+        _log << Indent(2) << "Vlasov part\n";
 
-        // #pragma omp parallel for 
-        // for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        // {
-        //     Tet* tet = _mesh->tets[tetInd];
+        #pragma omp parallel for 
+        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+        {
+            Tet* tet = _mesh->tets[tetInd];
 
-        //     // TODO: Add a constant electric field
-        //     for (int k = 0; k < 3; k++)
-        //     {
-        //         double forceComponent = _plParams->charge * field[tetInd][k];
-        //         rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k); // TODO: /m?
-        //     }
-        // }
+            // TODO: Add a constant electric field
+            for (int k = 0; k < 3; k++)
+            {
+                double forceComponent = (_plParams->charge / _plParams->mass) * field[tetInd][k];
+                // rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k); // TODO: /m?
+
+                comprRHS[tetInd] -= forceComponent * _PDFDerivative(tet, k);
+            }
+            comprRHS[tetInd].Recompress(comprPrecision, _maxRank);
+        }
         
         timer.PrintSectionTime(Indent(2) + "Done");
 
@@ -153,7 +155,7 @@ void Solver::Solve(int nIterations)
             // _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
 
             comprPDF[tetInd] += timeStep * comprRHS[tetInd];
-            comprPDF[tetInd].Recompress(1e-6);
+            comprPDF[tetInd].Recompress(comprPrecision, _maxRank);
         }
 
         // _log << Indent(1) << "Difference: " <<
@@ -161,16 +163,18 @@ void Solver::Solve(int nIterations)
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        // double nSumm = 0.0;
-        // vector<double> density = _plParams->Density();
-        // for (auto tet : _mesh->tets)
-        //     nSumm += density[tet->index];
-
         _log << Indent(1) << "Time: " << it * timeStep << "\n";
-        // _log << Indent(1) << "Total density: " << nSumm << "\n";
 
-        // if (abs(nSumm) > 1e8)
-        //     throw runtime_error("Solution diverged");
+        array<double, 3> averageR = {0, 0, 0};
+        for (int i = 0; i < _mesh->tets.size(); i++)
+        {
+            for (int j = 0; j < 3; j++)
+                averageR[j] += comprPDF[i].Ranks()[j] / (double)_mesh->tets.size();
+        }
+        cout << "Average ranks = {" <<
+            averageR[0] << ", " <<
+            averageR[1] << ", " <<
+            averageR[2] << "}\n";
 
         if (it % writeStep == 0)
         {
@@ -179,6 +183,9 @@ void Solver::Solve(int nIterations)
                 _plParams->pdf[i] = comprPDF[i].Reconstructed();
             }
             vector<double> density = _plParams->Density();
+
+            for (auto d : density)
+                assert(d == d);
 
             string densityFile = "solution/density/density_" + to_string(it / writeStep);
             VTK::WriteCellScalarData(densityFile, *_mesh, density);
@@ -225,8 +232,8 @@ void Solver::_PrecomputeNormalTensors()
 
             _vNormalAbs[tetInd][i] = _vNormal[tetInd][i].abs();
 
-            _comprVNormal[tetInd][i] = Tucker(_vNormal[tetInd][i], 1e-6);
-            _comprVNormalAbs[tetInd][i] = Tucker(_vNormalAbs[tetInd][i], 1e-6);
+            _comprVNormal[tetInd][i] = Tucker(_vNormal[tetInd][i], comprPrecision, _maxRank);
+            _comprVNormalAbs[tetInd][i] = Tucker(_vNormalAbs[tetInd][i], comprPrecision, _maxRank);
 
             // VTK::WriteDistribution("uncompr", *_vGrid, _vNormalAbs[tetInd][i]);
             // VTK::WriteDistribution("compr", *_vGrid, _comprVNormalAbs[tetInd][i].Reconstructed());
@@ -235,11 +242,12 @@ void Solver::_PrecomputeNormalTensors()
     }
 }
 
-Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
+// Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
+Tucker Solver::_PDFDerivative(const Tet* tet, int ind) const
 {
     int tetInd = tet->index;
 
-    Tensor pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+    // Tensor pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
 
     // array<int, 3> i;
     // for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)
@@ -274,10 +282,15 @@ Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
     //         }
     //     }
     // }
+ 
+    Tucker pdfCompr(_plParams->pdf[tetInd]);
 
-    
+    auto core = pdfCompr.Core();
+    auto u = pdfCompr.U();
 
-    return pdfDer;
+    u[ind] = (_vGrid->d[ind] * u[ind]).eval();
+
+    return Tucker(core, u);
 }
 
 void Solver::_PrecomputeGradCoeffs()

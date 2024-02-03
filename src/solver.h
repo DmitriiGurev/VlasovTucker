@@ -23,13 +23,17 @@ public:
 
 private:
     void _PrecomputeNormalTensors();
-    Tensor _PDFDerivative(const Tet* tet, int ind) const;
+    Tucker _PDFDerivative(const Tet* tet, int ind) const;
+    // Tensor _PDFDerivative(const Tet* tet, int ind) const;
 
     void _PrecomputeGradCoeffs();
     std::array<Tensor, 3> _Gradient(Tet* tet) const;
 
 public:
     int writeStep = INT_MAX;
+
+    // Compression error
+    double comprPrecision = 1e-10;
 
 private:
     const Mesh* _mesh;
@@ -56,4 +60,7 @@ private:
     // ...
     // TODO: Change to unordered map
     std::map<std::tuple<Tet*, Tet*>, Point> _distances;
+
+    // Maximum tensor rank 
+    int _maxRank;
 };

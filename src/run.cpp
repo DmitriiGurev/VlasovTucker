@@ -10,6 +10,7 @@
 #include "log.h"
 #include "timer.h"
 
+using namespace VlasovTucker;
 using namespace std;
 
 int main(int argc, char *argv[])
@@ -23,7 +24,7 @@ int main(int argc, char *argv[])
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
 
-    VelocityGrid<Tensor> vGrid({11, 3, 3}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
+    VelocityGrid<Tensor3d> vGrid({11, 3, 3}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
     PlasmaParameters plasmaParams(&mesh, &vGrid);
     plasmaParams.species = ParticleType::Custom;
@@ -40,8 +41,8 @@ int main(int argc, char *argv[])
 
     plasmaParams.SetPDF<PlasmaParameters::MaxwellPDF>(paramsPDF);
 
-    VTK::WriteDistribution("initial_distribution", vGrid, plasmaParams.pdf[mesh.tets.size() / 2]);
-    VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
+    WriteDistributionVTK("initial_distribution", vGrid, plasmaParams.pdf[mesh.tets.size() / 2]);
+    WriteCellScalarDataVTK("initial_density", mesh, plasmaParams.Density());
 
     Solver solver(&mesh, &vGrid, &plasmaParams);
     solver.comprPrecision = 1e-6;

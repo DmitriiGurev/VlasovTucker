@@ -9,6 +9,8 @@
 using namespace Eigen;
 using std::vector;
 
+namespace VlasovTucker
+{
 Tucker::Tucker() :
     _n({0, 0, 0}),
     _r({0, 0, 0})
@@ -24,20 +26,20 @@ Tucker::Tucker(int n0, int n1, int n2,
     _u[1] = MatrixXd::Zero(n1, r1);
     _u[2] = MatrixXd::Zero(n2, r2);
 
-    _core = Tensor<double, 3>(r0, r1, r2);
+    _core = Tensor3d(r0, r1, r2);
     _core.setZero();
 }
 
 // Compress a tensor with a given accuracy
-Tucker::Tucker(const Tensor<double, 3>& tensor,
-               double eps,
-               int rmax)
+Tucker::Tucker(const Tensor3d& tensor,
+               double precision,
+               int maxRank)
 {
     _n = {(int)tensor.dimension(0),
           (int)tensor.dimension(1),
           (int)tensor.dimension(2)};
 
-    _ComputeU(tensor, eps, rmax);
+    _ComputeU(tensor, precision, maxRank);
 
     _r = {(int)_u[0].cols(),
           (int)_u[1].cols(),
@@ -48,8 +50,8 @@ Tucker::Tucker(const Tensor<double, 3>& tensor,
 }
 
 // Create a tensor with given core and matrices U
-Tucker::Tucker(const Eigen::Tensor<double, 3>& core,
-               const std::array<Eigen::MatrixXd, 3>& u) :
+Tucker::Tucker(const Tensor3d& core,
+               const std::array<MatrixXd, 3>& u) :
     _core(core), _u(u) 
 {
     _n = {(int)_u[0].rows(),
@@ -59,6 +61,40 @@ Tucker::Tucker(const Eigen::Tensor<double, 3>& core,
     _r = {(int)_core.dimension(0),
           (int)_core.dimension(1),
           (int)_core.dimension(2)};
+}
+
+Tucker& Tucker::Compress(double precision, int maxRank)
+{
+    vector<MatrixXd> Q(3);
+    vector<MatrixXd> R(3);
+    for (int i : {0, 1, 2})
+    {
+        MatrixXd thinQ(_u[i].rows(), _u[i].cols());
+        MatrixXd q(_u[i].rows(), _u[i].rows());
+
+        HouseholderQR<MatrixXd> householderQR(_u[i]);
+        q = householderQR.householderQ();
+        thinQ.setIdentity();
+
+        Q[i] = householderQR.householderQ() * thinQ;
+        R[i] = Q[i].transpose() * _u[i];
+    }
+
+    MatrixXd A0 = R[0] * Unfolding(_core, 0) * kroneckerProduct(R[1], R[2]).transpose();
+    Tensor3d aux = Folding(_r[0], _r[1], _r[2], A0, 0);
+
+    Tucker auxTucker(aux, precision, maxRank);
+
+    _core = auxTucker.Core();
+
+    for (int i : {0, 1, 2})
+        _u[i] = Q[i] * auxTucker.U()[i];
+
+    _r = {(int)_u[0].cols(),
+          (int)_u[1].cols(),
+          (int)_u[2].cols()};
+
+    return *this;
 }
 
 int Tucker::Size() const
@@ -81,12 +117,12 @@ array<MatrixXd, 3> Tucker::U() const
     return _u;
 }
 
-Tensor<double, 3> Tucker::Core() const
+Tensor3d Tucker::Core() const
 {
     return _core;
 }
 
-double Tucker::At(int i0, int i1, int i2) const
+double Tucker::operator()(int i0, int i1, int i2) const
 {
     double el = 0;
 
@@ -103,7 +139,7 @@ double Tucker::At(int i0, int i1, int i2) const
     return el;
 }
 
-Tensor<double, 3> Tucker::Reconstructed() const
+Tensor3d Tucker::Reconstructed() const
 {
     return Folding(_n[0], _n[1], _n[2],
                    _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(),
@@ -119,7 +155,7 @@ double Tucker::Sum() const
         {
             for (int j2 = 0; j2 < _n[2]; j2++)
             {
-                sum += this->At(j0, j1, j2);
+                sum += (*this)(j0, j1, j2);
             }
         }
     }
@@ -135,46 +171,12 @@ double Tucker::Norm() const
         {
             for (int j2 = 0; j2 < _n[2]; j2++)
             {
-                double el = this->At(j0, j1, j2);
+                double el = (*this)(j0, j1, j2);
                 sumSq += el * el;
             }
         }
     }
     return sqrt(sumSq);
-}
-
-Tucker& Tucker::Recompress(double eps, int rmax)
-{
-    vector<MatrixXd> Q(3);
-    vector<MatrixXd> R(3);
-    for (int i : {0, 1, 2})
-    {
-        MatrixXd thinQ(_u[i].rows(), _u[i].cols());
-        MatrixXd q(_u[i].rows(), _u[i].rows());
-
-        HouseholderQR<MatrixXd> householderQR(_u[i]);
-        q = householderQR.householderQ();
-        thinQ.setIdentity();
-
-        Q[i] = householderQR.householderQ() * thinQ;
-        R[i] = Q[i].transpose() * _u[i];
-    }
-
-    MatrixXd A0 = R[0] * Unfolding(_core, 0) * kroneckerProduct(R[1], R[2]).transpose();
-    Tensor<double, 3> aux = Folding(_r[0], _r[1], _r[2], A0, 0);
-
-    Tucker auxTucker(aux, eps, rmax);
-
-    _core = auxTucker.Core();
-
-    for (int i : {0, 1, 2})
-        _u[i] = Q[i] * auxTucker.U()[i];
-
-    _r = {(int)_u[0].cols(),
-          (int)_u[1].cols(),
-          (int)_u[2].cols()};
-
-    return *this;
 }
 
 std::ostream& operator<<(std::ostream& out, const Tucker& tucker)
@@ -324,16 +326,6 @@ Tucker operator-(const Tucker& t)
     return (-1.0) * t;
 }
 
-Tucker Reflection(Tucker t, int axis)
-{
-    if (axis < 0 || axis > 2)
-        throw std::invalid_argument("Axis is expected to be in [0, 1, 2]");
-
-    t._u[axis] = t._u[axis].colwise().reverse().eval();
-
-    return t;
-};                
-
 template<typename Scalar, int rank, typename sizeType>
 Map<const Matrix<Scalar, Dynamic, Dynamic>>
 TensorToMatrix(const Tensor<Scalar, rank>& tensor,
@@ -343,7 +335,7 @@ TensorToMatrix(const Tensor<Scalar, rank>& tensor,
     return Map<const Matrix<Scalar, Dynamic, Dynamic>>(tensor.data(), rows, cols);
 }
 
-MatrixXd Unfolding(const Tensor<double, 3>& tensor,
+MatrixXd Unfolding(const Tensor3d& tensor,
                    int index)
 {
     int I0 = tensor.dimension(0);
@@ -389,8 +381,8 @@ MatrixXd Unfolding(const Tensor<double, 3>& tensor,
         {
             for (int i = 0; i < I1; i++)
             {
-                Tensor<double, 3> thread = tensor.slice(array<Index, 3>{j, i, 0},
-                                                        array<Index, 3>{1, 1, I2});
+                Tensor3d thread = tensor.slice(array<Index, 3>{j, i, 0},
+                                               array<Index, 3>{1, 1, I2});
                                                         
                 unfolding.block(0, i + j * I1, I2, 1) = TensorToMatrix(thread, I2, 1);
             }
@@ -400,11 +392,11 @@ MatrixXd Unfolding(const Tensor<double, 3>& tensor,
     return unfolding;
 }
 
-Tensor<double, 3> Folding(int I0, int I1, int I2,
-                          const MatrixXd& unfolding,
-                          int index)
+Tensor3d Folding(int I0, int I1, int I2,
+                 const MatrixXd& unfolding,
+                 int index)
 {
-    Tensor<double, 3> folding(I0, I1, I2);
+    Tensor3d folding(I0, I1, I2);
 
     switch (index)
     {
@@ -448,9 +440,7 @@ Tensor<double, 3> Folding(int I0, int I1, int I2,
     return folding;
 }
 
-void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
-                       double eps,
-                       int rmax)
+void Tucker::_ComputeU(const Tensor3d& tensor, double precision, int rmax)
 {
     for (int i : {0, 1, 2})
     {
@@ -458,7 +448,7 @@ void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
         VectorXd SV = SVD.singularValues();
         _u[i] = SVD.matrixU();
 
-        double threshold = eps * SV.norm() / sqrt(3);
+        double threshold = precision * SV.norm() / sqrt(3);
 
         vector<int> colsToKeep;
         int r = 0;
@@ -473,4 +463,5 @@ void Tucker::_ComputeU(const Tensor<double, 3>& tensor,
         VectorXi rowsToKeep = VectorXi::LinSpaced(_u[i].rows(), 0, _u[i].rows());
         _u[i] = _u[i](rowsToKeep, colsToKeep).eval();
     }
+}
 }

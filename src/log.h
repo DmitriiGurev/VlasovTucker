@@ -5,6 +5,8 @@
 #include <fstream>
 #include <cassert>
 
+namespace VlasovTucker
+{
 enum class LogLevel
 {
     None,
@@ -81,4 +83,5 @@ private:
 static std::string Indent(int level) {
     int basicIndent = 4;
     return std::string(basicIndent * level, ' ');
+}
 }

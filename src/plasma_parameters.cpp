@@ -4,6 +4,8 @@
 
 using namespace std;
 
+namespace VlasovTucker
+{
 template<>
 void PlasmaParameters::SetPDF<PlasmaParameters::MaxwellPDF>(
     const PlasmaParameters::MaxwellPDF& paramsPDF)
@@ -12,7 +14,7 @@ void PlasmaParameters::SetPDF<PlasmaParameters::MaxwellPDF>(
     int n1 = _vGrid->nCells[1];
     int n2 = _vGrid->nCells[2];
 
-    Tensor v(n0, n1, n2);
+    Tensor3d v(n0, n1, n2);
     // TODO: Do it in parallel
     for (auto tet : _mesh->tets)
     {
@@ -89,4 +91,5 @@ vector<double> PlasmaParameters::Density() const
         result[i] = density;
     }
     return result;
+}
 }

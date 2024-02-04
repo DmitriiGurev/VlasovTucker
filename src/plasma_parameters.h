@@ -9,6 +9,8 @@
 #include "typedefs.h"
 #include "velocity_grid.h"
 
+namespace VlasovTucker
+{
 enum class ParticleType
 {
     Electron,
@@ -20,7 +22,7 @@ enum class ParticleType
 class PlasmaParameters
 {
 public:
-    PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor>* vGrid) :
+    PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor3d>* vGrid) :
         _mesh(mesh), _vGrid(vGrid) {}
 
     struct MaxwellPDF
@@ -40,13 +42,14 @@ public:
     double       mass;
     double       charge;
 
-    std::vector<Tensor> pdf;
+    std::vector<Tensor3d> pdf;
 
 private:
     const Mesh* _mesh;
-    const VelocityGrid<Tensor>* _vGrid;
+    const VelocityGrid<Tensor3d>* _vGrid;
 };
 
 // TODO: Move it somewhere else?
 std::vector<double> ScalarField(const Mesh* mesh,
     std::function<double(const Point&)> densityFunc);
+}

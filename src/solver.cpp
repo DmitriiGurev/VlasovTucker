@@ -6,8 +6,10 @@
 
 using namespace std;
 
+namespace VlasovTucker
+{
 Solver::Solver(const Mesh* mesh,
-               const VelocityGrid<Tensor>* velocityGrid,
+               const VelocityGrid<Tensor3d>* velocityGrid, // TODO: Change to Full/Tucker
                PlasmaParameters* plasmaParameters) :
     _mesh(mesh),
     _vGrid(velocityGrid),
@@ -23,7 +25,6 @@ Solver::Solver(const Mesh* mesh,
     // _boundaryConditions = std::vector<ParticleBC>(_mesh->faces.size());
     
     _PrecomputeNormalTensors();
-    _PrecomputeGradCoeffs();
 
     int memorySpent = _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6);
     _log << "The normal velocity tensors take up " << memorySpent << " MB of RAM\n"; 
@@ -88,11 +89,11 @@ void Solver::Solve(int nIterations)
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the right-hand side\n";
-        vector<Tensor> rhs(_mesh->tets.size());
+        vector<Tensor3d> rhs(_mesh->tets.size());
         vector<Tucker> comprRHS;
         for (auto tet : _mesh->tets)
         {
-            rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+            rhs[tet->index] = Tensor3d(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
             rhs[tet->index].setZero();
 
             comprRHS.push_back(Tucker(rhs[tet->index], comprPrecision, _maxRank));
@@ -120,7 +121,7 @@ void Solver::Solve(int nIterations)
                     comprPDF[tetInd]) - _comprVNormalAbs[tetInd][i] *
                     (comprPDF[adjTetInd] - comprPDF[tetInd]));
 
-                comprRHS[tetInd].Recompress(comprPrecision, _maxRank);
+                comprRHS[tetInd].Compress(comprPrecision, _maxRank);
             }
         }
 
@@ -141,7 +142,7 @@ void Solver::Solve(int nIterations)
 
                 comprRHS[tetInd] -= forceComponent * _PDFDerivative(tet, k);
             }
-            comprRHS[tetInd].Recompress(comprPrecision, _maxRank);
+            comprRHS[tetInd].Compress(comprPrecision, _maxRank);
         }
         
         timer.PrintSectionTime(Indent(2) + "Done");
@@ -155,7 +156,7 @@ void Solver::Solve(int nIterations)
             // _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
 
             comprPDF[tetInd] += timeStep * comprRHS[tetInd];
-            comprPDF[tetInd].Recompress(comprPrecision, _maxRank);
+            comprPDF[tetInd].Compress(comprPrecision, _maxRank);
         }
 
         // _log << Indent(1) << "Difference: " <<
@@ -188,17 +189,17 @@ void Solver::Solve(int nIterations)
                 assert(d == d);
 
             string densityFile = "solution/density/density_" + to_string(it / writeStep);
-            VTK::WriteCellScalarData(densityFile, *_mesh, density);
+            WriteCellScalarDataVTK(densityFile, *_mesh, density);
 
             // string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
-            // VTK::WriteCellScalarData(phiFile, *_mesh, phi);
+            // WriteCellScalarDataVTK(phiFile, *_mesh, phi);
 
             // string fieldFile = "solution/field/e_" + to_string(it / writeStep);
-            // VTK::WriteCellVectorData(fieldFile, *_mesh, field);
+            // WriteCellVectorDataVTK(fieldFile, *_mesh, field);
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
-            // VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
-            VTK::WriteDistribution(distrFile, *_vGrid, comprPDF[_mesh->tets.size() / 2].Reconstructed());
+            // WriteDistributionVTK(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
+            WriteDistributionVTK(distrFile, *_vGrid, comprPDF[_mesh->tets.size() / 2].Reconstructed());
 
             // string analytFile = "solution/analytical/analytical_" + to_string(it / writeStep);
             // auto rhoFunc = [it, timeStep](const Point& p)
@@ -207,15 +208,15 @@ void Solver::Solve(int nIterations)
             //     // return 10 + 0.2 * (((p.coords[0] - it * timeStep < 0.2) &&
             //     //     (p.coords[0] - it * timeStep > 0.0)) ? 1 : 0);
             // };
-            // VTK::WriteCellScalarData(analytFile, *_mesh, ScalarField(_mesh, rhoFunc));
+            // WriteCellScalarDataVTK(analytFile, *_mesh, ScalarField(_mesh, rhoFunc));
         }
     }
 }
 
 void Solver::_PrecomputeNormalTensors()
 {
-    _vNormal = vector<array<Tensor, 4>>(_mesh->tets.size());
-    _vNormalAbs = vector<array<Tensor, 4>>(_mesh->tets.size());
+    _vNormal = vector<array<Tensor3d, 4>>(_mesh->tets.size());
+    _vNormalAbs = vector<array<Tensor3d, 4>>(_mesh->tets.size());
 
     _comprVNormal = vector<array<Tucker, 4>>(_mesh->tets.size());
     _comprVNormalAbs = vector<array<Tucker, 4>>(_mesh->tets.size());
@@ -232,11 +233,11 @@ void Solver::_PrecomputeNormalTensors()
 
             _vNormalAbs[tetInd][i] = _vNormal[tetInd][i].abs();
 
-            _comprVNormal[tetInd][i] = Tucker(_vNormal[tetInd][i], comprPrecision, _maxRank);
-            _comprVNormalAbs[tetInd][i] = Tucker(_vNormalAbs[tetInd][i], comprPrecision, _maxRank);
+            _comprVNormal[tetInd][i] = Tucker(_vNormal[tetInd][i], comprPrecision);
+            _comprVNormalAbs[tetInd][i] = Tucker(_vNormalAbs[tetInd][i], comprPrecision, 6);
 
-            // VTK::WriteDistribution("uncompr", *_vGrid, _vNormalAbs[tetInd][i]);
-            // VTK::WriteDistribution("compr", *_vGrid, _comprVNormalAbs[tetInd][i].Reconstructed());
+            // WriteDistributionVTK("uncompr", *_vGrid, _vNormalAbs[tetInd][i]);
+            // WriteDistributionVTK("compr", *_vGrid, _comprVNormalAbs[tetInd][i].Reconstructed());
             // exit(1);
         }
     }
@@ -292,97 +293,4 @@ Tucker Solver::_PDFDerivative(const Tet* tet, int ind) const
 
     return Tucker(core, u);
 }
-
-void Solver::_PrecomputeGradCoeffs()
-{
-    for (auto tet : _mesh->tets)
-    {
-        array<Point, 4> dist;
-        
-        for (int i = 0; i < 4; i++)
-        {
-            // Remark: Works only for periodic cases
-
-            Tet* adjTet = tet->adjTets[i];
-            Point d = (adjTet->centroid - tet->centroid);
-
-            int k = 0;
-            while (adjTet->adjTets[k] != tet)
-                k++;
-
-            dist[i] = d + tet->faces[i]->centroid - adjTet->faces[k]->centroid;
-
-            _distances[{tet, adjTet}] = dist[i];
-        }
-
-        array<double, 4> weights;
-        for (int i = 0; i < 4; i++)
-            weights[i] = 1 / dist[i].Abs();
-
-        Eigen::Matrix3d m;
-        for (int k = 0; k < 3; k++)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                m(k, i) = 0;
-                for (int j = 0; j < 4; j++)
-                    m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
-            }
-        }
-        _gradMatrices.push_back(m);
-    }
-}
-
-array<Tensor, 3> Solver::_Gradient(Tet* tet) const {
-    array<Tensor, 3> grad;
-
-    int tetInd = tet->index;
-    
-    double a1 = _gradMatrices[tetInd](0, 0);
-    double a2 = _gradMatrices[tetInd](0, 1);
-    double a3 = _gradMatrices[tetInd](0, 2);
-    double b1 = _gradMatrices[tetInd](1, 0);
-    double b2 = _gradMatrices[tetInd](1, 1);
-    double b3 = _gradMatrices[tetInd](1, 2);
-    double c1 = _gradMatrices[tetInd](2, 0);
-    double c2 = _gradMatrices[tetInd](2, 1);
-    double c3 = _gradMatrices[tetInd](2, 2);
-
-    double e1 = a1 * b2 - a2 * b1;
-    double e2 = a1 * b3 - a3 * b1;
-    double f1 = a1 * c2 - a2 * c1;
-    double f2 = a1 * c3 - a3 * c1;
-
-    array<Point, 4> dist;
-    array<double, 4> weights;
-    for (int i = 0; i < 4; i++)
-    {
-        dist[i] = _distances.at({tet, tet->adjTets[i]}); 
-        weights[i] = 1 / dist[i].Abs();
-    }
-
-    array<Tensor, 3> rhs;
-    for (int k = 0; k < 3; k++)
-    {
-        rhs[k] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-        rhs[k].setZero();
-    }
-
-    for (int k = 0; k < 3; k++)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            rhs[k] += 2 * weights[i] * dist[i].coords[k] *
-                (_plParams->pdf[tet->adjTets[i]->index] - _plParams->pdf[tetInd]);
-        }
-    }
-
-    Tensor h1 = a1 * rhs[1] - b1 * rhs[0];
-    Tensor h2 = a1 * rhs[2] - c1 * rhs[0];
-
-    grad[2] = (h2 * e1 - h1 * f1) / (f2 * e1 - f1 * e2); 
-    grad[1] = h1 / e1 - e2 * grad[2] / e1;
-    grad[0] = rhs[0] / a1 - a2 * grad[1] / a1 - a3 * grad[2] / a1;
-
-    return grad;
 }

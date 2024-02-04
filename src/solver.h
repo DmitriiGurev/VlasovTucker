@@ -12,11 +12,13 @@
 
 // TODO: Add BC
 
+namespace VlasovTucker
+{
 class Solver
 {
 public:
     Solver(const Mesh* mesh,
-           const VelocityGrid<Tensor>* velocityGrid,
+           const VelocityGrid<Tensor3d>* velocityGrid,
            PlasmaParameters* plasmaParameters);
 
     void Solve(int nIterations);
@@ -26,9 +28,6 @@ private:
     Tucker _PDFDerivative(const Tet* tet, int ind) const;
     // Tensor _PDFDerivative(const Tet* tet, int ind) const;
 
-    void _PrecomputeGradCoeffs();
-    std::array<Tensor, 3> _Gradient(Tet* tet) const;
-
 public:
     int writeStep = INT_MAX;
 
@@ -37,7 +36,7 @@ public:
 
 private:
     const Mesh* _mesh;
-    const VelocityGrid<Tensor>* _vGrid;
+    const VelocityGrid<Tensor3d>* _vGrid;
 
     PlasmaParameters* _plParams;
 
@@ -46,8 +45,8 @@ private:
     Log _log;
 
     // Normal velocity tensors
-    std::vector<std::array<Tensor, 4>> _vNormal;
-    std::vector<std::array<Tensor, 4>> _vNormalAbs;
+    std::vector<std::array<Tensor3d, 4>> _vNormal;
+    std::vector<std::array<Tensor3d, 4>> _vNormalAbs;
 
     // Compressed normal velocity tensors
     std::vector<std::array<Tucker, 4>> _comprVNormal;
@@ -64,3 +63,4 @@ private:
     // Maximum tensor rank 
     int _maxRank;
 };
+}

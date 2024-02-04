@@ -1,11 +1,13 @@
 #pragma once
 
+#include "typedefs.h"
+
 #include <Eigen/Dense>
 
 #include <array>
 
-#include "typedefs.h"
-
+namespace VlasovTucker
+{
 template <class TensorType>
 struct VelocityGrid
 {
@@ -29,3 +31,4 @@ struct VelocityGrid
     // Central difference matrices
     std::array<Eigen::MatrixXd, 3> d;
 };
+}

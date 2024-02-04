@@ -11,6 +11,8 @@
 
 using namespace std;
 
+namespace VlasovTucker
+{
 Mesh::Mesh(string fileName)
 {
     // Read a .msh file
@@ -352,4 +354,5 @@ std::ostream& operator<<(std::ostream& os, const Tet& t)
        << "      " << *t.points[3] << "}";
 
     return os;
+}
 }

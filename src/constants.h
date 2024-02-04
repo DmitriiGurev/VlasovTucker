@@ -1,5 +1,7 @@
 #pragma once
 
+namespace VlasovTucker
+{
 const double pi = 3.14159265358979323846;
 
 // const double atomicMass   = 1.66e-27;  // kg
@@ -12,3 +14,4 @@ const double pi = 3.14159265358979323846;
 // Temporary
 const double epsilon0   = 1;
 const double boltzConst = 1;
+}

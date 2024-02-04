@@ -6,6 +6,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+using namespace VlasovTucker;
 using namespace std;
 
 int main() 
@@ -25,7 +26,7 @@ int main()
     averageSize /= mesh.tets.size();
     cout << "Average size: " << averageSize << "\n";
 
-    VTK::WriteMesh("mesh", mesh);
+    WriteMeshVTK("mesh", mesh);
     
     cout << "Initialize the solver...\n";
     PoissonSolver solver(&mesh);
@@ -37,7 +38,7 @@ int main()
     };
 
     vector<double> rho = ScalarField(&mesh, rhoFunc);
-    VTK::WriteCellScalarData("rho", mesh, rho);
+    WriteCellScalarDataVTK("rho", mesh, rho);
 
     for (int r = 0; r < 3; r++)
         solver.Solve(rho);
@@ -64,8 +65,8 @@ int main()
         phiAnalytical.push_back(analytical);
     }
     cout << "Phi error: " << err / mesh.tets.size() << "\n";
-    VTK::WriteCellScalarData("phi", mesh, phi);
-    VTK::WriteCellScalarData("phi_analytical", mesh, phiAnalytical);
+    WriteCellScalarDataVTK("phi", mesh, phi);
+    WriteCellScalarDataVTK("phi_analytical", mesh, phiAnalytical);
 
     vector<array<double, 3>> field = solver.ElectricField();
     vector<array<double, 3>> fieldAnalytical;
@@ -83,7 +84,7 @@ int main()
         fieldAnalytical.push_back(analytical.coords);
     }
     cout << "Field error: " << errField / mesh.tets.size() << "\n";
-    VTK::WriteCellVectorData("electric_field", mesh, field);
-    VTK::WriteCellVectorData("electric_field_analytical", mesh, fieldAnalytical);
+    WriteCellVectorDataVTK("electric_field", mesh, field);
+    WriteCellVectorDataVTK("electric_field_analytical", mesh, fieldAnalytical);
     timer.PrintSectionTime("Writing the results");
 }

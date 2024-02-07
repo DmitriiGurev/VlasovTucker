@@ -9,7 +9,10 @@
 #include "solver.h"
 #include "log.h"
 #include "timer.h"
+#include "full.h"
+#include "tucker.h"
 
+using namespace VlasovTucker;
 using namespace std;
 
 int main(int argc, char *argv[])
@@ -21,41 +24,29 @@ int main(int argc, char *argv[])
     Mesh mesh(meshFileName);
     timer.PrintSectionTime("Mesh initialization");
 
-    cout << mesh.faces.size() << " faces, ";
-    cout << mesh.tets.size() << " tets\n";
+    cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
 
-    int nCells = 41;
-    double minVX = -7;
-    double maxVX = 7;
-    VelocityGrid<Tensor> vGrid({ nCells, 3,    3   },
-                               { maxVX,  0.1,  0.1 },
-                               { minVX, -0.1, -0.1 });
+    VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
-    PlasmaParameters plasmaParams(&mesh, &vGrid);
+    PlasmaParameters<Tucker> plasmaParams(&mesh, &vGrid);
     plasmaParams.species = ParticleType::Custom;
-    plasmaParams.mass    = 1;
-    plasmaParams.charge  = 10;
+    plasmaParams.mass = 1;
+    plasmaParams.charge = 10;
 
-    PlasmaParameters::MaxwellPDF paramsPDF;
-
-    auto rhoFunc = [](const Point& p)
-    {
-        return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi));
-    };
-
+    MaxwellPDF paramsPDF;
+    auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi)); };
     paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
-    paramsPDF.mostProbableV = { 0, 0, 0 };
+    paramsPDF.mostProbableV = {0, 0, 0};
 
-    cout << "The PDF takes up " << vGrid.nCellsTotal * mesh.tets.size() * 8 / pow(10, 6) <<
-        " MB of RAM\n"; 
-        
-    plasmaParams.SetPDF<PlasmaParameters::MaxwellPDF>(paramsPDF);
+    plasmaParams.SetCompressionError(1e-6);
+    plasmaParams.SetMaxwellPDF(paramsPDF);
 
-    VTK::WriteDistribution("initial_distribution", vGrid, plasmaParams.pdf[mesh.tets.size() / 2]);
-    VTK::WriteCellScalarData("initial_density", mesh, plasmaParams.Density());
+    WriteDistributionVTK("initial_distribution", vGrid,
+        plasmaParams.pdf[mesh.tets.size() / 2].Reconstructed());
+    WriteCellScalarDataVTK("initial_density", mesh, plasmaParams.Density());
 
-    Solver solver(&mesh, &vGrid, &plasmaParams);
-    // solver.writeStep = 200;
+    Solver<Tucker> solver(&mesh, &vGrid, &plasmaParams);
+    solver.writeStep = 100;
     solver.Solve(100000);
 }

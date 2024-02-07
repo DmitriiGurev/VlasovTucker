@@ -3,27 +3,35 @@
 #include "smoother.h"
 #include "vtk.h"
 #include "timer.h"
+#include "full.h"
+#include "tucker.h"
 
 using namespace std;
 
-Solver::Solver(const Mesh* mesh,
-               const VelocityGrid<Tensor>* velocityGrid,
-               PlasmaParameters* plasmaParameters) :
+namespace VlasovTucker
+{
+template class Solver<Full>;
+template class Solver<Tucker>;
+
+template <typename TensorType>
+Solver<TensorType>::Solver(const Mesh* mesh,
+                           const VelocityGrid* velocityGrid,
+                           PlasmaParameters<TensorType>* plasmaParameters) :
     _mesh(mesh),
     _vGrid(velocityGrid),
     _plParams(plasmaParameters)
 {
     // TODO: Set LogLevel in CMake
     _log = Log(LogLevel::AllText, "solver_");
+
+    // Set boundary conditions
+    // _boundaryConditions = std::vector<ParticleBC>(_mesh->faces.size());
     
     _PrecomputeNormalTensors();
-    _PrecomputeGradCoeffs();
-
-    int memorySpent = _vGrid->nCellsTotal * _mesh->tets.size() * 4 * 8 / pow(10, 6);
-    _log << "The normal velocity tensors take up " << memorySpent << " MB of RAM\n"; 
 }
 
-void Solver::Solve(int nIterations)
+template <typename TensorType>
+void Solver<TensorType>::Solve(int nIterations)
 {
     // TODO: Calculate it using the Courant number
     double timeStep = 1.0 * 1.0e-4;
@@ -34,6 +42,9 @@ void Solver::Solve(int nIterations)
     PoissonSolver pSolver(_mesh);
     timer.PrintSectionTime("Poisson solver initialization");
 
+    double comprErr = _plParams->CompressionError();
+    double maxRank = _plParams->MaxRank();
+
     _log << "Start the main loop\n";
     for (int it = 0; it < nIterations; it++)
     {
@@ -41,21 +52,26 @@ void Solver::Solve(int nIterations)
         _log << "\n" << "Iteration #" << it << "\n";
         
         _log << Indent(1) << "Compute the electric field\n";
+
         vector<double> rho = _plParams->Density();
         for (int i = 0; i < rho.size(); i++) 
             rho[i] *= _plParams->charge;
 
         pSolver.Solve(rho);
-        vector<double> phi = pSolver.Potential(); // For debug
+        // vector<double> phi = pSolver.Potential(); // For debugging
         vector<array<double, 3>> field = move(pSolver.ElectricField());
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the right-hand side\n";
-        vector<Tensor> rhs(_mesh->tets.size());
+        vector<TensorType> rhs;
         for (auto tet : _mesh->tets)
         {
-            rhs[tet->index] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-            rhs[tet->index].setZero();
+            Tensor3d t3d(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+            t3d.setZero();
+
+            TensorType tensor(t3d);
+            // tensor.Compress(comprErr, maxRank);
+            rhs.push_back(tensor);
         }
 
         _log << Indent(2) << "Boltzmann part\n";
@@ -67,67 +83,19 @@ void Solver::Solve(int nIterations)
             for (int i = 0; i < 4; i++)
             {
                 int adjTetInd = tet->adjTets[i]->index;
-                
-                Tensor upwindPDF = 0.5 * (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] +
-                    _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] * (_plParams->pdf[adjTetInd] -
-                    _plParams->pdf[tetInd]));
 
-                if (fluxScheme == FluxScheme::Upwind)
-                {
-                    // Upwind reconstruction: X_f = X_C
-                    rhs[tetInd] -= tet->faces[i]->area / tet->volume * upwindPDF;
-                }
-                else 
-                {
-                    // Compute gradients for a second-order scheme
-                    array<Tensor, 3> grad = _Gradient(tet);
-                    array<Tensor, 3> adjGrad = _Gradient(tet->adjTets[i]);
-                    Point dist = tet->faces[i]->centroid - tet->centroid;
-                    Point adjDist = tet->faces[i]->centroid - tet->adjTets[i]->centroid;
+                rhs[tetInd] -= tet->faces[i]->area / tet->volume *
+                    0.5 * (_vNormal[tetInd][i] * (_plParams->pdf[adjTetInd] +
+                    _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][i] *
+                    (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
 
-                    Tensor correction(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-                    correction.setZero();
-
-                    if (fluxScheme == FluxScheme::UpwindFROMM)
-                    {
-                        // FROMM reconstruction: X_f = X_C + (grad X)_C * d_Cf
-                        for (int k = 0; k < 3; k++)
-                        {
-                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
-                                adjGrad[k]) + (dist.coords[k] * grad[k])) - _vNormalAbs[tetInd][i] *
-                                ((adjDist.coords[k] * adjGrad[k]) - (dist.coords[k] * grad[k])));
-                        }
-
-                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
-                    }
-                    else if (fluxScheme == FluxScheme::UpwindQUICK)
-                    {
-                        // QUICK reconstruction: X_f = X_C + 0.5 ((grad X)_C + (grad X)_f) * d_Cf
-                        array<Tensor, 3> gradFace;
-                        double w = adjDist.Abs() / (adjDist.Abs() + dist.Abs());
-                        double adjW = dist.Abs() / (adjDist.Abs() + dist.Abs());
-                        for (int k = 0; k < 3; k++)
-                            gradFace[k] = w * grad[k] + adjW * adjGrad[k];
-
-                        for (int k = 0; k < 3; k++)
-                        {
-                            correction += 0.5 * (_vNormal[tetInd][i] * ((adjDist.coords[k] *
-                                0.5 * (adjGrad[k] + gradFace[k])) + (dist.coords[k] *
-                                0.5 * (grad[k] + gradFace[k]))) - _vNormalAbs[tetInd][i] *
-                                ((adjDist.coords[k] * 0.5 * (adjGrad[k] + gradFace[k])) -
-                                (dist.coords[k] * 0.5 * (grad[k] + gradFace[k]))));
-                        }
-
-                        rhs[tetInd] -= tet->faces[i]->area / tet->volume * (upwindPDF + correction);
-                    }
-                }
+                rhs[tetInd].Compress(comprErr, maxRank);
             }
         }
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(2) << "Vlasov part\n";
-
         #pragma omp parallel for 
         for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
         {
@@ -136,9 +104,10 @@ void Solver::Solve(int nIterations)
             // TODO: Add a constant electric field
             for (int k = 0; k < 3; k++)
             {
-                double forceComponent = _plParams->charge * field[tetInd][k];
+                double forceComponent = (_plParams->charge / _plParams->mass) * field[tetInd][k];
                 rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k);
             }
+            rhs[tetInd].Compress(comprErr, maxRank);
         }
         
         timer.PrintSectionTime(Indent(2) + "Done");
@@ -148,44 +117,62 @@ void Solver::Solve(int nIterations)
         #pragma omp parallel for 
         for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
         {
-            Tet* tet = _mesh->tets[tetInd];
             _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
+            _plParams->pdf[tetInd].Compress(comprErr, maxRank);
         }
 
         timer.PrintSectionTime(Indent(2) + "Done");
 
-        double nSumm = 0.0;
-        vector<double> density = _plParams->Density();
-        for (auto tet : _mesh->tets)
-            nSumm += density[tet->index];
-
         _log << Indent(1) << "Time: " << it * timeStep << "\n";
-        _log << Indent(1) << "Total density: " << nSumm << "\n";
 
-        if (abs(nSumm) > 1e8)
-            throw runtime_error("Solution diverged");
+        double averageSize = 0;
+        for (int i = 0; i < _mesh->tets.size(); i++)
+            averageSize += _plParams->pdf[i].Size();
+        averageSize /= (double)_mesh->tets.size();
+        _log << Indent(1) << "Average PDF size = " << averageSize << "\n";
+        _log << Indent(1) << "(Uncompressed: " << _vGrid->nCellsTotal << ")\n";
 
         if (it % writeStep == 0)
         {
+            vector<double> density = _plParams->Density();
+
+            for (auto d : density)
+                assert(d == d);
+
             string densityFile = "solution/density/density_" + to_string(it / writeStep);
-            VTK::WriteCellScalarData(densityFile, *_mesh, density);
+            WriteCellScalarDataVTK(densityFile, *_mesh, density);
 
-            string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
-            VTK::WriteCellScalarData(phiFile, *_mesh, phi);
+            // string phiFile = "solution/phi/phi_" + to_string(it / writeStep);
+            // WriteCellScalarDataVTK(phiFile, *_mesh, phi);
 
-            string fieldFile = "solution/field/e_" + to_string(it / writeStep);
-            VTK::WriteCellVectorData(fieldFile, *_mesh, field);
+            // string fieldFile = "solution/field/e_" + to_string(it / writeStep);
+            // WriteCellVectorDataVTK(fieldFile, *_mesh, field);
 
             string distrFile = "solution/distribution/distribution_" + to_string(it / writeStep);
-            VTK::WriteDistribution(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
+            // WriteDistributionVTK(distrFile, *_vGrid, _plParams->pdf[_mesh->tets.size() / 2]);
+            WriteDistributionVTK(distrFile, *_vGrid,
+                _plParams->pdf[_mesh->tets.size() / 2].Reconstructed());
+
+            // string analytFile = "solution/analytical/analytical_" + to_string(it / writeStep);
+            // auto rhoFunc = [it, timeStep](const Point& p)
+            // { 
+            //     return 10 + 0.2 * sin(1 * (p.coords[0] - it * timeStep) * (2 * pi));
+            //     // return 10 + 0.2 * (((p.coords[0] - it * timeStep < 0.2) &&
+            //     //     (p.coords[0] - it * timeStep > 0.0)) ? 1 : 0);
+            // };
+            // WriteCellScalarDataVTK(analytFile, *_mesh, ScalarField(_mesh, rhoFunc));
         }
     }
 }
 
-void Solver::_PrecomputeNormalTensors()
+template <typename TensorType>
+void Solver<TensorType>::_PrecomputeNormalTensors()
 {
-    _vNormal = vector<array<Tensor, 4>>(_mesh->tets.size());
-    _vNormalAbs = vector<array<Tensor, 4>>(_mesh->tets.size());
+    _vNormal = vector<array<TensorType, 4>>(_mesh->tets.size());
+    _vNormalAbs = vector<array<TensorType, 4>>(_mesh->tets.size());
+
+    double reduction = 0;
+    double absReduction = 0;
 
     for (auto tet : _mesh->tets)
     {
@@ -193,20 +180,50 @@ void Solver::_PrecomputeNormalTensors()
         for (int i = 0; i < 4; i++)
         {
             Point normal = tet->faces[i]->normal;
-            _vNormal[tetInd][i] = normal.coords[0] * _vGrid->v[0] +
-                                  normal.coords[1] * _vGrid->v[1] +
-                                  normal.coords[2] * _vGrid->v[2]; 
+            Tensor3d vNormal = normal.coords[0] * _vGrid->v[0] +
+                               normal.coords[1] * _vGrid->v[1] +
+                               normal.coords[2] * _vGrid->v[2]; 
 
-            _vNormalAbs[tetInd][i] = _vNormal[tetInd][i].abs();
+            Tensor3d vNormalAbs = vNormal.abs();
+
+            _vNormal[tetInd][i] = TensorType(vNormal);
+            _vNormalAbs[tetInd][i] = TensorType(vNormalAbs);
+
+            _vNormal[tetInd][i].Compress(_plParams->CompressionError());
+            _vNormalAbs[tetInd][i].Compress(_plParams->CompressionError(), 6);
+
+            reduction += vNormal.size() / (double)_vNormal[tetInd][i].Size();
+            absReduction += vNormalAbs.size() / (double)_vNormalAbs[tetInd][i].Size();
         }
     }
+    reduction /= _mesh->tets.size();
+    absReduction /= _mesh->tets.size();
+
+    _log << "Normal speed size reduction: " << reduction << " times on average\n";
+    _log << "Absolute normal speed size reduction: " << absReduction << " times on average\n";
 }
 
-Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
+template <>
+Tucker Solver<Tucker>::_PDFDerivative(const Tet* tet, int ind) const
+{
+    int tetInd = tet->index;
+ 
+    Tucker pdfCompr(_plParams->pdf[tetInd]);
+
+    auto core = pdfCompr.Core();
+    auto u = pdfCompr.U();
+
+    u[ind] = (_vGrid->d[ind] * u[ind]).eval();
+
+    return Tucker(core, u);
+}
+
+template <>
+Full Solver<Full>::_PDFDerivative(const Tet* tet, int ind) const
 {
     int tetInd = tet->index;
 
-    Tensor pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+    Tensor3d pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
 
     array<int, 3> i;
     for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)
@@ -241,100 +258,6 @@ Tensor Solver::_PDFDerivative(const Tet* tet, int ind) const
             }
         }
     }
-
-    return pdfDer;
+    return Full(pdfDer);
 }
-
-void Solver::_PrecomputeGradCoeffs()
-{
-    for (auto tet : _mesh->tets)
-    {
-        array<Point, 4> dist;
-        
-        for (int i = 0; i < 4; i++)
-        {
-            // Remark: Works only for periodic cases
-            
-            Tet* adjTet = tet->adjTets[i];
-            Point d = (adjTet->centroid - tet->centroid);
-
-            int k = 0;
-            while (adjTet->adjTets[k] != tet)
-                k++;
-
-            dist[i] = d + tet->faces[i]->centroid - adjTet->faces[k]->centroid;
-
-            _distances[{tet, adjTet}] = dist[i];
-        }
-
-        array<double, 4> weights;
-        for (int i = 0; i < 4; i++)
-            weights[i] = 1 / dist[i].Abs();
-
-        Eigen::Matrix3d m;
-        for (int k = 0; k < 3; k++)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                m(k, i) = 0;
-                for (int j = 0; j < 4; j++)
-                    m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
-            }
-        }
-        _gradMatrices.push_back(m);
-    }
-}
-
-array<Tensor, 3> Solver::_Gradient(Tet* tet) const {
-    array<Tensor, 3> grad;
-
-    int tetInd = tet->index;
-    
-    double a1 = _gradMatrices[tetInd](0, 0);
-    double a2 = _gradMatrices[tetInd](0, 1);
-    double a3 = _gradMatrices[tetInd](0, 2);
-    double b1 = _gradMatrices[tetInd](1, 0);
-    double b2 = _gradMatrices[tetInd](1, 1);
-    double b3 = _gradMatrices[tetInd](1, 2);
-    double c1 = _gradMatrices[tetInd](2, 0);
-    double c2 = _gradMatrices[tetInd](2, 1);
-    double c3 = _gradMatrices[tetInd](2, 2);
-
-    double e1 = a1 * b2 - a2 * b1;
-    double e2 = a1 * b3 - a3 * b1;
-    double f1 = a1 * c2 - a2 * c1;
-    double f2 = a1 * c3 - a3 * c1;
-
-    array<Point, 4> dist;
-    array<double, 4> weights;
-    for (int i = 0; i < 4; i++)
-    {
-        dist[i] = _distances.at({tet, tet->adjTets[i]}); 
-        weights[i] = 1 / dist[i].Abs();
-    }
-
-    array<Tensor, 3> rhs;
-    for (int k = 0; k < 3; k++)
-    {
-        rhs[k] = Tensor(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-        rhs[k].setZero();
-    }
-
-    for (int k = 0; k < 3; k++)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            rhs[k] += 2 * weights[i] * dist[i].coords[k] *
-                (_plParams->pdf[tet->adjTets[i]->index] - _plParams->pdf[tetInd]);
-        }
-    }
-
-    Tensor h1 = a1 * rhs[1] - b1 * rhs[0];
-    Tensor h2 = a1 * rhs[2] - c1 * rhs[0];
-
-    grad[2] = (h2 * e1 - h1 * f1) / (f2 * e1 - f1 * e2); 
-    grad[1] = h1 / e1 - e2 * grad[2] / e1;
-    grad[0] = rhs[0] / a1 - a2 * grad[1] / a1 - a3 * grad[2] / a1;
-
-    return grad;
 }

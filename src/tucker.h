@@ -1,76 +1,85 @@
 #pragma once
 
-#include <unsupported/Eigen/CXX11/Tensor>
+#include "typedefs.h"
+
 #include <Eigen/Dense>
 
-template<typename Scalar, int rank, typename sizeType>
-Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
-TensorToMatrix(const Eigen::Tensor<Scalar, rank>& tensor,
-				const sizeType rows,
-				const sizeType cols);
-
-Eigen::MatrixXd Unfolding(const Eigen::Tensor<double, 3>& tensor, int index);
-
-Eigen::Tensor<double, 3> Folding(int I0, int I1, int I2,
-								 const Eigen::MatrixXd& unfolding,
-								 int index);
-
+namespace VlasovTucker
+{
 class Tucker
 {
 public:
 	Tucker();
+
 	// Zero tensor with given ranks
 	Tucker(int n0, int n1, int n2,
 		   int r0, int r1, int r2);
 
 	// Compress a tensor with a given accuracy
-	Tucker(const Eigen::Tensor<double, 3>& tensor,
-		   double eps = 1e-14,
-		   int rmax = 1e+6);
+	Tucker(const Tensor3d& tensor,
+		   double precision = 0,
+		   int maxRank = 1e+6);
 
-	// Create a rank-one tensor from given factors
-	Tucker(const std::vector<Eigen::VectorXd>& u);
+	// Create a tensor with given core tensor and matrices U
+	Tucker(const Tensor3d& core,
+		   const std::array<Eigen::MatrixXd, 3>& u);
 
 	int Size() const;
 
-	std::vector<int> Dimensions() const;
-	std::vector<int> Ranks() const;
-	std::vector<Eigen::MatrixXd> U() const;
-	Eigen::Tensor<double, 3> Core() const;
+	std::array<int, 3> Dimensions() const;
+	std::array<int, 3> Ranks() const;
 
-	double At(int i0, int i1, int i2) const;
-	Eigen::Tensor<double, 3> Reconstructed() const;
+	std::array<Eigen::MatrixXd, 3> U() const;
+	Tensor3d Core() const;
+
+	double operator()(int i0, int i1, int i2) const;
+
+	Tensor3d Reconstructed() const;
 
 	double Sum() const;
 	double Norm() const;
 
 	Tucker Abs() const;
 
-	void Recompress(double eps = 1e-14, int rmax = 1e+6);
+	Tucker& Compress(double precision = 0, int maxRank = 1e+6);
 
-	friend std::ostream& operator <<(std::ostream& out, const Tucker& t);
+	friend std::ostream& operator<<(std::ostream& out, const Tucker& t);
 
-	Tucker& operator +=(const Tucker& t);
+	Tucker& operator+=(const Tucker& t);
+	Tucker& operator-=(const Tucker& t);
+	Tucker& operator*=(const Tucker& t);
+	Tucker& operator*=(double d);
 
-	friend Tucker operator +(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator -(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator *(const Tucker& t1, const Tucker& t2);
-	friend Tucker operator *(const double alpha, const Tucker& t);
-	friend Tucker operator *(const Tucker& t, const double alpha);
-	friend Tucker operator /(Tucker t1, const Tucker& t2);
-	friend Tucker operator -(const Tucker& t);
-
-	friend Tucker Reflection(Tucker t, int axis);
-
-private:
-	// TODO: Remove u
-	void _ComputeU(const Eigen::Tensor<double, 3>& tensor,
-				  double eps = 1e-14,
-				  int rmax = 1e+6);
+	friend Tucker operator+(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator-(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator*(const Tucker& t1, const Tucker& t2);
+	friend Tucker operator*(double d, const Tucker& t);
+	friend Tucker operator*(const Tucker& t, double d);
+	friend Tucker operator-(const Tucker& t);
 
 private:
-	std::vector<int> _n = std::vector<int>(3);
-	std::vector<int> _r = std::vector<int>(3);
-	std::vector<Eigen::MatrixXd> _u = std::vector<Eigen::MatrixXd>(3);
-	Eigen::Tensor<double, 3> _core;
+	void _ComputeU(const Tensor3d& tensor,
+				   double precision,
+				   int maxRank);
+
+private:
+	std::array<int, 3> _n;
+	std::array<int, 3> _r;
+	std::array<Eigen::MatrixXd, 3> _u;
+	Tensor3d _core;
 };
+
+// Tensor-matrix conversions
+template<typename Scalar, int rank, typename sizeType>
+Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
+TensorToMatrix(const Eigen::Tensor<Scalar, rank>& tensor,
+			   const sizeType rows,
+			   const sizeType cols);
+
+Eigen::MatrixXd Unfolding(const Tensor3d& tensor,
+                          int index);
+
+Tensor3d Folding(int I0, int I1, int I2,
+			     const Eigen::MatrixXd& unfolding,
+			     int index);
+}

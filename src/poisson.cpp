@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace VlasovTucker
+{
 PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _mesh(mesh)
 {
@@ -333,4 +335,5 @@ vector<array<double, 3>> PoissonSolver::ElectricField() const
         field[i] = (_gradient[i] * (-1)).coords;
 
     return field;
+}
 }

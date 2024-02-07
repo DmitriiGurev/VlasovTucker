@@ -4,6 +4,8 @@
 #include <chrono>
 #include <string>
 
+namespace VlasovTucker
+{
 class Timer
 {
     typedef std::chrono::high_resolution_clock Clock;
@@ -44,3 +46,4 @@ private:
     TimePoint _startTime;
     TimePoint _prevTime;
 };
+}

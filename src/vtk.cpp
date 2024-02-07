@@ -2,11 +2,11 @@
 
 using namespace std;
 
-namespace VTK
+namespace VlasovTucker
 {
-void WriteCellScalarData(string fileName,
-                         const Mesh& mesh,
-                         const vector<double>& data)
+void WriteCellScalarDataVTK(string fileName,
+                            const Mesh& mesh,
+                            const vector<double>& data)
 {
     ofstream out;
     out.open(fileName + ".vtk");
@@ -45,9 +45,9 @@ void WriteCellScalarData(string fileName,
     out.close();
 }
 
-void WriteCellVectorData(string fileName,
-                         const Mesh& mesh,
-                         const vector<array<double, 3>>& data)
+void WriteCellVectorDataVTK(string fileName,
+                            const Mesh& mesh,
+                            const vector<array<double, 3>>& data)
 {
     ofstream out;
     out.open(fileName + ".vtk");
@@ -86,8 +86,8 @@ void WriteCellVectorData(string fileName,
     out.close();
 }
 
-void WriteMesh(string fileName,
-               const Mesh& mesh)
+void WriteMeshVTK(string fileName,
+                  const Mesh& mesh)
 {
     // Write faces
     ofstream out;
@@ -142,9 +142,9 @@ void WriteMesh(string fileName,
         out << 10 << "\n";
 }
 
-void WriteDistribution(string fileName,
-                       const VelocityGrid<Tensor>& velocityGrid,
-                       const Tensor& distribution)
+void WriteDistributionVTK(string fileName,
+                          const VelocityGrid& velocityGrid,
+                          const Tensor3d& distribution)
 {
     ofstream out;
     out.open(fileName + ".vtk");

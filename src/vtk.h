@@ -10,20 +10,20 @@
 #include "typedefs.h"
 #include "velocity_grid.h"
 
-namespace VTK
+namespace VlasovTucker
 {
-void WriteCellScalarData(std::string fileName,
-                         const Mesh& mesh,
-                         const std::vector<double>& data = {});
+void WriteCellScalarDataVTK(std::string fileName,
+                            const Mesh& mesh,
+                            const std::vector<double>& data = {});
 
-void WriteCellVectorData(std::string fileName,
-                         const Mesh& mesh,
-                         const std::vector<std::array<double, 3>>& data = {});
+void WriteCellVectorDataVTK(std::string fileName,
+                            const Mesh& mesh,
+                            const std::vector<std::array<double, 3>>& data = {});
 
-void WriteMesh(std::string fileName,
-               const Mesh& mesh);
+void WriteMeshVTK(std::string fileName,
+                  const Mesh& mesh);
 
-void WriteDistribution(std::string fileName,
-                       const VelocityGrid<Tensor>& velocityGrid,
-                       const Tensor& distribution);
+void WriteDistributionVTK(std::string fileName,
+                          const VelocityGrid& velocityGrid,
+                          const Tensor3d& distribution);
 }

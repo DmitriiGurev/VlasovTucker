@@ -7,6 +7,8 @@
 #include <array>
 #include <unordered_map>
 
+namespace VlasovTucker
+{
 class Point
 {
 public:
@@ -123,3 +125,4 @@ private:
     
     std::unordered_map<KeyTriple, Face*, HashTriple> _pointsToFaces;
 };
+}

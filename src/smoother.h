@@ -5,6 +5,8 @@
 #include <vector>
 #include <array>
 
+namespace VlasovTucker
+{
 class Smoother
 {
 public:
@@ -64,4 +66,5 @@ void Smoother::SmoothField(std::vector<T>& field)
             field[tet->index] = smoothVal;
         }
     } 
+}
 }

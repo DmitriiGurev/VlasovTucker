@@ -11,6 +11,8 @@
 
 using namespace std;
 
+namespace VlasovTucker
+{
 enum class PoissonBCType { NonBoundary, Neumann, Dirichlet, Periodic };
 
 struct PoissonBC
@@ -54,3 +56,4 @@ private:
     std::vector<double> _solution /*= std::vector<double>(_mesh->tets.size())*/;
     std::vector<Point> _gradient /*= std::vector<Point>(_mesh->tets.size())*/;
 };
+}

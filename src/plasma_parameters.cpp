@@ -66,7 +66,7 @@ void PlasmaParameters<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
         }
 
         TensorType tensor(t3d);
-        tensor.Compress(_comprErr, _maxRank);
+        // tensor.Compress(_comprErr, _maxRank);
         pdf.push_back(tensor);
 
         reduction += t3d.size() / (double)tensor.Size();

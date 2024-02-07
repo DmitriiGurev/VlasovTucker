@@ -4,7 +4,6 @@
 #include "plasma_parameters.h"
 #include "typedefs.h"
 #include "log.h"
-#include "tucker.h"
 
 #include <vector>
 #include <map>
@@ -14,53 +13,35 @@
 
 namespace VlasovTucker
 {
+template <typename TensorType>
 class Solver
 {
 public:
     Solver(const Mesh* mesh,
-           const VelocityGrid<Tensor3d>* velocityGrid,
-           PlasmaParameters* plasmaParameters);
+           const VelocityGrid* velocityGrid,
+           PlasmaParameters<TensorType>* plasmaParameters);
 
     void Solve(int nIterations);
 
 private:
     void _PrecomputeNormalTensors();
-    Tucker _PDFDerivative(const Tet* tet, int ind) const;
-    // Tensor _PDFDerivative(const Tet* tet, int ind) const;
+    TensorType _PDFDerivative(const Tet* tet, int ind) const;
 
 public:
     int writeStep = INT_MAX;
 
-    // Compression error
-    double comprPrecision = 1e-10;
-
 private:
     const Mesh* _mesh;
-    const VelocityGrid<Tensor3d>* _vGrid;
+    const VelocityGrid* _vGrid;
 
-    PlasmaParameters* _plParams;
+    PlasmaParameters<TensorType>* _plParams;
 
     // std::vector<ParticleBC> _boundaryConditions;
 
     Log _log;
 
     // Normal velocity tensors
-    std::vector<std::array<Tensor3d, 4>> _vNormal;
-    std::vector<std::array<Tensor3d, 4>> _vNormalAbs;
-
-    // Compressed normal velocity tensors
-    std::vector<std::array<Tucker, 4>> _comprVNormal;
-    std::vector<std::array<Tucker, 4>> _comprVNormalAbs;
-
-    // Coefficients for LSM gradient
-    std::vector<Eigen::Matrix3d> _gradMatrices;
-    // std::vector<Eigen::Vector3d> _gradRHSCoeffs;
-    
-    // ...
-    // TODO: Change to unordered map
-    std::map<std::tuple<Tet*, Tet*>, Point> _distances;
-
-    // Maximum tensor rank 
-    int _maxRank;
+    std::vector<std::array<TensorType, 4>> _vNormal;
+    std::vector<std::array<TensorType, 4>> _vNormalAbs;
 };
 }

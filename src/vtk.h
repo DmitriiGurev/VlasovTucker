@@ -24,6 +24,6 @@ void WriteMeshVTK(std::string fileName,
                   const Mesh& mesh);
 
 void WriteDistributionVTK(std::string fileName,
-                          const VelocityGrid<Tensor3d>& velocityGrid,
+                          const VelocityGrid& velocityGrid,
                           const Tensor3d& distribution);
 }

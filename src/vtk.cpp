@@ -143,7 +143,7 @@ void WriteMeshVTK(string fileName,
 }
 
 void WriteDistributionVTK(string fileName,
-                          const VelocityGrid<Tensor3d>& velocityGrid,
+                          const VelocityGrid& velocityGrid,
                           const Tensor3d& distribution)
 {
     ofstream out;

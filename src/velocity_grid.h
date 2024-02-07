@@ -8,7 +8,6 @@
 
 namespace VlasovTucker
 {
-template <class TensorType>
 struct VelocityGrid
 {
     VelocityGrid(std::array<int, 3> nCells,
@@ -26,7 +25,7 @@ struct VelocityGrid
     std::array<double, 3> maxV;
     std::array<double, 3> minV;
 
-    std::array<TensorType, 3> v;
+    std::array<Tensor3d, 3> v;
 
     // Central difference matrices
     std::array<Eigen::MatrixXd, 3> d;

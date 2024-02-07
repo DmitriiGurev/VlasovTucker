@@ -72,7 +72,7 @@ Tucker& Tucker::Compress(double precision, int maxRank)
         MatrixXd thinQ(_u[i].rows(), _u[i].cols());
         MatrixXd q(_u[i].rows(), _u[i].rows());
 
-        HouseholderQR<MatrixXd> householderQR(_u[i]);
+        ColPivHouseholderQR<MatrixXd> householderQR(_u[i]);
         q = householderQR.householderQ();
         thinQ.setIdentity();
 

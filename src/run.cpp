@@ -9,6 +9,8 @@
 #include "solver.h"
 #include "log.h"
 #include "timer.h"
+#include "full.h"
+#include "tucker.h"
 
 using namespace VlasovTucker;
 using namespace std;
@@ -24,29 +26,27 @@ int main(int argc, char *argv[])
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
 
-    VelocityGrid<Tensor3d> vGrid({11, 3, 3}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
+    VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
-    PlasmaParameters plasmaParams(&mesh, &vGrid);
+    PlasmaParameters<Tucker> plasmaParams(&mesh, &vGrid);
     plasmaParams.species = ParticleType::Custom;
     plasmaParams.mass = 1;
     plasmaParams.charge = 10;
 
-    PlasmaParameters::MaxwellPDF paramsPDF;
-
+    MaxwellPDF paramsPDF;
     auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi)); };
-
     paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
     paramsPDF.mostProbableV = {0, 0, 0};
 
-    plasmaParams.SetPDF<PlasmaParameters::MaxwellPDF>(paramsPDF);
+    plasmaParams.SetCompressionError(1e-6);
+    plasmaParams.SetMaxwellPDF(paramsPDF);
 
-    WriteDistributionVTK("initial_distribution", vGrid, plasmaParams.pdf[mesh.tets.size() / 2]);
+    WriteDistributionVTK("initial_distribution", vGrid,
+        plasmaParams.pdf[mesh.tets.size() / 2].Reconstructed());
     WriteCellScalarDataVTK("initial_density", mesh, plasmaParams.Density());
 
-    Solver solver(&mesh, &vGrid, &plasmaParams);
-    solver.comprPrecision = 1e-6;
-
-    solver.writeStep = 10;
+    Solver<Tucker> solver(&mesh, &vGrid, &plasmaParams);
+    solver.writeStep = 100;
     solver.Solve(100000);
 }

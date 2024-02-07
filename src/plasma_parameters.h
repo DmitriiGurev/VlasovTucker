@@ -19,34 +19,43 @@ enum class ParticleType
     Custom
 };
 
+struct MaxwellPDF
+{
+    std::vector<double> physDensity;
+    double temperature;
+    std::array<double, 3> mostProbableV;
+};
+
+template <typename TensorType>
 class PlasmaParameters
 {
 public:
-    PlasmaParameters(const Mesh* mesh, const VelocityGrid<Tensor3d>* vGrid) :
-        _mesh(mesh), _vGrid(vGrid) {}
+    PlasmaParameters(const Mesh* mesh, const VelocityGrid* vGrid);
 
-    struct MaxwellPDF
-    {
-        std::vector<double>   physDensity;
-        double                temperature;
-        std::array<double, 3> mostProbableV;
-    };
-
-    template <typename ParamsPDF>
-    void SetPDF(const ParamsPDF& parameters);
+    void SetMaxwellPDF(const MaxwellPDF& paramsPDF);
 
     std::vector<double> Density() const;
 
+    void SetCompressionError(double error);
+    double CompressionError() const;
+    int MaxRank() const;
+
 public:
     ParticleType species;
-    double       mass;
-    double       charge;
+    double mass;
+    double charge;
 
-    std::vector<Tensor3d> pdf;
+    // Particle distribution function
+    std::vector<TensorType> pdf;
 
 private:
     const Mesh* _mesh;
-    const VelocityGrid<Tensor3d>* _vGrid;
+    const VelocityGrid* _vGrid;
+
+    // Compression error
+    double _comprErr = 1e-10;
+    // Maximum tensor rank 
+    int _maxRank;
 };
 
 // TODO: Move it somewhere else?

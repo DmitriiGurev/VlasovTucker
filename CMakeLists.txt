@@ -20,6 +20,7 @@ add_library(
     ./src/plasma_parameters.cpp
     ./src/solver.cpp
     ./src/vtk.cpp
+    ./src/full.cpp
     ./src/tucker.cpp
     )
 

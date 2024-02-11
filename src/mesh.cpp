@@ -71,6 +71,11 @@ void Mesh::SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicP
     _periodicPairs = periodicPairs;
 }
 
+std::vector<std::array<int, 2>> Mesh::PeriodicBoundaries() const
+{
+    return _periodicPairs;
+}
+
 void Mesh::Reconstruct()
 {
     // Fill the vector of nodes

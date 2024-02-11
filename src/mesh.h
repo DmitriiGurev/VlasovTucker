@@ -21,6 +21,7 @@ public:
     void PrintBoundaryLabels() const;
 
     void SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicPairs);
+    std::vector<std::array<int, 2>> PeriodicBoundaries() const;
 
     ~Mesh();
 

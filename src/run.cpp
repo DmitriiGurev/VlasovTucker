@@ -15,6 +15,8 @@
 using namespace VlasovTucker;
 using namespace std;
 
+using TensorType = Full;
+
 int main(int argc, char *argv[])
 {
     string meshFileName = "../data/meshes/rectangle_very_fine.msh";
@@ -28,7 +30,7 @@ int main(int argc, char *argv[])
 
     VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
-    PlasmaParameters<Tucker> plasmaParams(&mesh, &vGrid);
+    PlasmaParameters<TensorType> plasmaParams(&mesh, &vGrid);
     plasmaParams.species = ParticleType::Custom;
     plasmaParams.mass = 1;
     plasmaParams.charge = 10;
@@ -46,7 +48,7 @@ int main(int argc, char *argv[])
         plasmaParams.pdf[mesh.tets.size() / 2].Reconstructed());
     WriteCellScalarDataVTK("initial_density", mesh, plasmaParams.Density());
 
-    Solver<Tucker> solver(&mesh, &vGrid, &plasmaParams);
+    Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
     solver.writeStep = 100;
     solver.Solve(100000);
 }

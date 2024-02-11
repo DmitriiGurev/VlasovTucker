@@ -196,8 +196,8 @@ void Solver<TensorType>::_PrecomputeNormalTensors()
             absReduction += vNormalAbs.size() / (double)_vNormalAbs[tetInd][i].Size();
         }
     }
-    reduction /= _mesh->tets.size();
-    absReduction /= _mesh->tets.size();
+    reduction /= 4 * _mesh->tets.size();
+    absReduction /= 4 * _mesh->tets.size();
 
     _log << "Normal speed size reduction: " << reduction << " times on average\n";
     _log << "Absolute normal speed size reduction: " << absReduction << " times on average\n";

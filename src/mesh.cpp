@@ -1,8 +1,5 @@
 #include "mesh.h"
 
-#include <mshio/mshio.h>
-#include <Eigen/Dense>
-
 #include <cassert>
 #include <map>
 #include <algorithm>
@@ -13,25 +10,103 @@ using namespace std;
 
 namespace VlasovTucker
 {
-Mesh::Mesh(string fileName)
+Mesh::Mesh(string mshFile)
 {
     // Read a .msh file
-    mshio::MshSpec spec = mshio::load_msh(fileName);
-        
+    _mshSpec = mshio::load_msh(mshFile);
+
+    // Read names of physical groups
+    unordered_map<int, string> physGroupTagToName;
+    for (auto physGroup : _mshSpec.physical_groups)
+        physGroupTagToName[physGroup.tag] = physGroup.name;
+
+    // Map entity tags to corresponding vectors of physical group names
+    for (auto surface : _mshSpec.entities.surfaces)
+    {
+        for (auto physGroupTag : surface.physical_group_tags)  // only for surfaces
+            _entityToPhysGroups[surface.tag].push_back(physGroupTagToName[physGroupTag]);
+    }
+}
+
+Mesh::~Mesh()
+{
+    for (auto point : points)
+        delete point;
+    
+    for (auto face : faces)
+        delete face;
+
+    for (auto tet : tets)
+        delete tet;
+}
+
+unordered_map<int, vector<string>> Mesh::BoundaryLabels() const
+{
+    return _entityToPhysGroups;
+}
+
+void Mesh::PrintBoundaryLabels() const
+{
+    for (auto pair : _entityToPhysGroups)
+    {
+        int number = pair.first;
+        int nLabels = pair.second.size();
+
+        cout << number << ": {";
+        if (nLabels == 0)
+        {
+            cout << "}\n";
+        }
+        else
+        {
+            for (int i = 0; i < nLabels - 1; i++) 
+                cout << pair.second[i] << ", ";
+            cout << pair.second[nLabels - 1] << "}\n";
+        }
+    }
+}
+
+void Mesh::SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicPairs)
+{
+    _periodicPairs = periodicPairs;
+}
+
+void Mesh::Reconstruct()
+{
     // Fill the vector of nodes
-    for (int i = 0; i < spec.nodes.num_nodes; i++)
+    _ExtractPoints();
+
+    // Fill the vectors of tetrahedra and faces
+    _ExtractTetsAndFaces();
+
+    // Scan the boundary faces (.msh does not contain non-boundary faces since they are not 
+    // assigned to any physical group)
+    _LabelBoundaryFaces();
+
+    // Fill the tet-tet adjacency information
+    _FillAdjacencyInfo();
+
+    // Connect the tetrahedra adjacent to the periodic boundaries (if any)
+    _ConfigurePeriodicity();
+}
+
+void Mesh::_ExtractPoints()
+{
+    for (int i = 0; i < _mshSpec.nodes.num_nodes; i++)
 	{
-        Point* point = new Point({spec.nodes.entity_blocks[0].data[3 * i],
-                                  spec.nodes.entity_blocks[0].data[3 * i + 1],
-                                  spec.nodes.entity_blocks[0].data[3 * i + 2]});
+        Point* point = new Point({_mshSpec.nodes.entity_blocks[0].data[3 * i],
+                                  _mshSpec.nodes.entity_blocks[0].data[3 * i + 1],
+                                  _mshSpec.nodes.entity_blocks[0].data[3 * i + 2]});
 
         point->index = points.size(); // insertion index
 
         points.push_back(point);
     }
+}
 
-    // Fill the vector of tetrahedra
-    for (auto entityBlock : spec.elements.entity_blocks)
+void Mesh::_ExtractTetsAndFaces()
+{
+    for (auto entityBlock : _mshSpec.elements.entity_blocks)
     {
         if (entityBlock.element_type == 4)
         {
@@ -51,7 +126,7 @@ Mesh::Mesh(string fileName)
 
                 tet->index = tets.size(); // insertion index
 
-                // Ensure that the orientation is correct
+                // Make sure that the orientation is correct
                 assert(tet->Orientation() <= 0);
 
                 tets.push_back(tet);
@@ -81,23 +156,11 @@ Mesh::Mesh(string fileName)
             }
         }
     }
+}
 
-    // Read names of physical groups
-    map<int, string> physGroupTagToName;
-    for (auto physGroup : spec.physical_groups)
-        physGroupTagToName[physGroup.tag] = physGroup.name;
-
-    // Map entity tags to corresponding vectors of physical group names
-    map<int, vector<string>> entityToPhysGroups;
-    for (auto surface : spec.entities.surfaces)
-    {
-        for (auto physGroupTag : surface.physical_group_tags)  // only for surfaces
-            entityToPhysGroups[surface.tag].push_back(physGroupTagToName[physGroupTag]);
-    }
-
-    // Scan the boundary faces (.msh does not contain non-boundary faces since they are not 
-    // assigned to any physical group)
-    for (auto entityBlock : spec.elements.entity_blocks)
+void Mesh::_LabelBoundaryFaces()
+{
+    for (auto entityBlock : _mshSpec.elements.entity_blocks)
     {
         if (entityBlock.element_type == 2)
         {
@@ -109,14 +172,16 @@ Mesh::Mesh(string fileName)
        
                 Face* face = _pointsToFaces[{points[i0], points[i1], points[i2]}];
                 
-                face->type = Boundary;
-                face->bcTypes = entityToPhysGroups[entityBlock.entity_tag];
+                face->type = FaceType::Boundary;
+                face->bcTypes = _entityToPhysGroups[entityBlock.entity_tag];
                 face->entity = entityBlock.entity_tag;
             }
         }
     }
+}
 
-    // Fill the tet-tet adjacency information
+void Mesh::_FillAdjacencyInfo()
+{
     for(auto face : faces)
     {
         Point* p0 = face->points[0];
@@ -128,231 +193,81 @@ Mesh::Mesh(string fileName)
             Face* invFace = _pointsToFaces[{p0, p2, p1}];
             face->adjTet->adjTets[face->adjTetInd] = invFace->adjTet;
         }
-    }       
-
-    // Group boundaries assigned to one periodic-type physical group
-    map<char, vector<vector<Face*>>> pairsOfSymPlanes;
-    for (auto pair : entityToPhysGroups) // TODO: Rename it
-    {
-        int entityTag = pair.first;
-        for (auto name : pair.second)
-        {
-            if (name.substr(0, 19) == "Boundary: Periodic ")
-            {
-                char tag = name[19];
-
-                vector<Face*> plane;
-                for (auto face : faces)
-                {
-                    if (face->type == Boundary && face->entity == entityTag)
-                        plane.push_back(face);
-                }
-                pairsOfSymPlanes[tag].push_back(plane);
-            }
-        }
     }
+}
 
+void SortFacesInPlane(vector<Face*>& plane)
+{
     auto ApproxEqual = [](double a, double b)
     {
         return abs(a - b) < 1e-8;
     };
 
-    // Lexicographically sort the faces so that parallel planes were sorted identically
-    for (auto& pair : pairsOfSymPlanes)
+    sort(plane.begin(), plane.end(), [&](const auto& lhs, const auto& rhs)
     {
-        assert(pair.second.size() == 2);
-        assert(pair.second[0].size() == pair.second[1].size());
-        for (auto& plane : pair.second)
+        if (!ApproxEqual(lhs->centroid.coords[0], rhs->centroid.coords[0]))
         {
-            sort(plane.begin(), plane.end(),
-                [&](const auto& lhs, const auto& rhs)
-                {
-                    if (!ApproxEqual(lhs->centroid.coords[0], rhs->centroid.coords[0]))
-                    {
-                        return lhs->centroid.coords[0] < rhs->centroid.coords[0];
-                    }
-                    else if (!ApproxEqual(lhs->centroid.coords[1], rhs->centroid.coords[1]))
-                    {
-                        return lhs->centroid.coords[1] < rhs->centroid.coords[1];
-                    }
-                    else if (!ApproxEqual(lhs->centroid.coords[2], rhs->centroid.coords[2]))
-                    {
-                        return lhs->centroid.coords[2] < rhs->centroid.coords[2];
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                });
+            return lhs->centroid.coords[0] < rhs->centroid.coords[0];
         }
+        else if (!ApproxEqual(lhs->centroid.coords[1], rhs->centroid.coords[1]))
+        {
+            return lhs->centroid.coords[1] < rhs->centroid.coords[1];
+        }
+        else if (!ApproxEqual(lhs->centroid.coords[2], rhs->centroid.coords[2]))
+        {
+            return lhs->centroid.coords[2] < rhs->centroid.coords[2];
+        }
+        else
+        {
+            return false;
+        }
+    });
+}
+
+void Mesh::_ConfigurePeriodicity()
+{
+    if (_periodicPairs.empty())
+        return;
+
+    // Collect faces into periodic planes
+    vector<array<vector<Face*>, 2>> pairsOfPeriodicPlanes;
+    for (auto pairInds : _periodicPairs)
+    {
+        array<vector<Face*>, 2> pairOfPlanes;
+        for (int i : {0, 1})
+        {
+            vector<Face*> plane;
+            for (auto face : faces)
+            {
+                if ((face->type == FaceType::Boundary) && (face->entity == pairInds[i]))
+                    plane.push_back(face);
+            }
+            pairOfPlanes[i] = plane;
+        }
+
+        // TODO: Throw a runtime error with an explanation
+        assert(pairOfPlanes[0].size() == pairOfPlanes[1].size());
+
+        pairsOfPeriodicPlanes.push_back(pairOfPlanes);
     }
 
-    // Connect the tetrahedra adjacent to the periodic boundaries
-    for (auto pair : pairsOfSymPlanes)
+    // Lexicographically sort the faces so that parallel planes were ordered identically
+    for (auto& pair : pairsOfPeriodicPlanes)
     {
-        for (int i = 0; i < pair.second[0].size(); i++)
+        for (int i : {0, 1})
+            SortFacesInPlane(pair[i]);
+    }
+
+    for (auto pairOfPlanes : pairsOfPeriodicPlanes)
+    {
+        for (int i = 0; i < pairOfPlanes[0].size(); i++)
         {
-            Face* face = pair.second[0][i];
-            Face* oppFace = pair.second[1][i];
+            Face* face = pairOfPlanes[0][i];
+            Face* oppFace = pairOfPlanes[1][i];
             
             face->adjTet->adjTets[face->adjTetInd] = oppFace->adjTet;
             oppFace->adjTet->adjTets[oppFace->adjTetInd] = face->adjTet;
         }
     }
-}
-
-Mesh::~Mesh()
-{
-    for (auto point : points)
-        delete point;
-    
-    for (auto face : faces)
-        delete face;
-
-    for (auto tet : tets)
-        delete tet;
-}
-
-// All cyclic permutations are equivalent
-bool Mesh::KeyTriple::operator==(const KeyTriple& keyTriple) const
-{
-    return (p0 == keyTriple.p0 &&
-            p1 == keyTriple.p1 &&
-            p2 == keyTriple.p2) ||
-           (p0 == keyTriple.p1 &&
-            p1 == keyTriple.p2 &&
-            p2 == keyTriple.p0) ||
-           (p0 == keyTriple.p2 &&
-            p1 == keyTriple.p0 &&
-            p2 == keyTriple.p1);
-}
-
-std::size_t Mesh::HashTriple::operator()(const KeyTriple& keyTriple) const
-{
-    return std::hash<Point*>()(keyTriple.p0) & 
-           std::hash<Point*>()(keyTriple.p1) & 
-           std::hash<Point*>()(keyTriple.p2);
-}
-
-Point::Point(std::array<double, 3> coords) :
-    coords(coords) {}
-
-Point Point::operator+(const Point& p) const
-{
-    return Point({coords[0] + p.coords[0],
-                  coords[1] + p.coords[1],
-                  coords[2] + p.coords[2]});
-}
-
-Point Point::operator-(const Point& p) const
-{
-    return Point({coords[0] - p.coords[0],
-                  coords[1] - p.coords[1],
-                  coords[2] - p.coords[2]});
-}
-
-Point Point::operator/(double d) const
-{
-    return Point({coords[0] / d,
-                  coords[1] / d,
-                  coords[2] / d});
-}
-
-Point Point::operator*(double d) const
-{
-    return Point({coords[0] * d,
-                  coords[1] * d,
-                  coords[2] * d});
-}
-
-bool Point::operator==(const Point& p) const
-{
-    return coords[0] == p.coords[0] &&
-           coords[1] == p.coords[1] &&
-           coords[2] == p.coords[2];
-}
-
-double Point::Abs() const
-{
-    return sqrt(coords[0] * coords[0] + 
-                coords[1] * coords[1] +
-                coords[2] * coords[2]);
-}
-
-double Point::DotProduct(const Point& p) const
-{
-    return coords[0] * p.coords[0] +
-           coords[1] * p.coords[1] +
-           coords[2] * p.coords[2];
-}
-
-Point Point::CrossProduct(const Point& p) const
-{
-    return Point({coords[1] * p.coords[2] - coords[2] * p.coords[1],
-                  coords[2] * p.coords[0] - coords[0] * p.coords[2],
-                  coords[0] * p.coords[1] - coords[1] * p.coords[0]});
-}
-
-std::ostream& operator<<(std::ostream& os, const Point& p)
-{
-    os << "Point: {" << p.coords[0] << ", " << p.coords[1]  << ", " << p.coords[2] << "}";
-    return os;
-}
-
-Face::Face(Point* p0, Point* p1, Point* p2) :
-    points({p0, p1, p2})
-{
-    centroid = (*p0 + *p1 + *p2) / 3.0;        
-
-    Point a = *p1 - *p0;
-    Point b = *p2 - *p0;
-
-    normal = a.CrossProduct(b);
-
-    double nLength = normal.Abs();
-    if (nLength == 0)
-        throw std::runtime_error("");
-
-    normal = normal / normal.Abs();
-
-    area = a.CrossProduct(b).Abs() / 2.0;
-}
-
-std::ostream& operator<<(std::ostream& os, const Face& f)
-{
-    os << "Face: {" << *f.points[0] << ",\n"
-       << "       " << *f.points[1] << ",\n"
-       << "       " << *f.points[2];
-
-    return os;
-}
-
-Tet::Tet(Point* p0, Point* p1, Point* p2, Point* p3) :
-    points({p0, p1, p2, p3})
-{
-    centroid = (*p0 + *p1 + *p2 + *p3) / 4.0;
-
-    volume = std::abs(Orientation()) / 6.0;
-}
-
-double Tet::Orientation() const
-{
-    Eigen::Matrix4d m;
-    m << points[0]->coords[0], points[0]->coords[1], points[0]->coords[2], 1,
-         points[1]->coords[0], points[1]->coords[1], points[1]->coords[2], 1,
-         points[2]->coords[0], points[2]->coords[1], points[2]->coords[2], 1,
-         points[3]->coords[0], points[3]->coords[1], points[3]->coords[2], 1;
-
-    return m.determinant();
-}
-
-std::ostream& operator<<(std::ostream& os, const Tet& t)
-{
-    os << "Tet: {" << *t.points[0] << ",\n"
-       << "      " << *t.points[1] << ",\n"
-       << "      " << *t.points[2] << ",\n"
-       << "      " << *t.points[3] << "}";
-
-    return os;
 }
 }

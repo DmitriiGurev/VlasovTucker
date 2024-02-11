@@ -23,10 +23,16 @@ int main(int argc, char *argv[])
 
     Timer timer;
     timer.StartSection();
+    
     Mesh mesh(meshFileName);
+    mesh.PrintBoundaryLabels();
+    mesh.SetPeriodicBounaries({{1, 2}, {3, 4}, {5, 6}});
+    mesh.Reconstruct();
+
     timer.PrintSectionTime("Mesh initialization");
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
+    WriteMeshVTK("mesh", mesh);
 
     VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 

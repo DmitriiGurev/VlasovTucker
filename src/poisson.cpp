@@ -19,10 +19,10 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
 
     for (int i = 0; i < _mesh->faces.size(); i++)
     {
-        if (_mesh->faces[i]->type == Internal)
+        if (_mesh->faces[i]->type == FaceType::Internal)
             _faceBC[i].type == PoissonBCType::NonBoundary;
 
-        if (_mesh->faces[i]->type == Boundary)
+        if (_mesh->faces[i]->type == FaceType::Boundary)
         {
             auto FaceTypeIs = [this](int faceInd, string type)
             {

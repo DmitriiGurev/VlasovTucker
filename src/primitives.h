@@ -65,7 +65,7 @@ public:
 
     int index; // insertion index
 
-    int entity = 0; // entity tag
+    int entity = -1; // entity tag
 
 public:
     friend std::ostream& operator<<(std::ostream& os, const Face& f);

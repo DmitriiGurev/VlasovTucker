@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
+
+project(VlasovTucker)
+
 # add_compile_options(-O3 -DNDEBUG -fno-math-errno -march=native)
 add_compile_options(-O3 -fno-math-errno -march=native)
 add_compile_options(-mincoming-stack-boundary=2)
-
-project(VlasovTucker)
 
 include_directories(
     ./include
@@ -14,6 +15,7 @@ include_directories(
 
 add_library(
     vlasov_tucker
+    ./src/primitives.cpp
     ./src/mesh.cpp
     ./src/poisson.cpp
     ./src/velocity_grid.cpp

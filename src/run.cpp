@@ -19,20 +19,19 @@ using TensorType = Full;
 
 int main(int argc, char *argv[])
 {
-    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
-
     Timer timer;
     timer.StartSection();
     
+    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
     Mesh mesh(meshFileName);
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{1, 2}, {3, 4}, {5, 6}});
     mesh.Reconstruct();
 
-    timer.PrintSectionTime("Mesh initialization");
-
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
     WriteMeshVTK("mesh", mesh);
+
+    timer.PrintSectionTime("Mesh initialization");
 
     VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 

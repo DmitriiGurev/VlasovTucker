@@ -19,7 +19,6 @@ struct PoissonBC
 {
     PoissonBCType type = PoissonBCType::NonBoundary;
     double value = 0;
-    Point gradient = Point({0, 0, 0});
     double normalGrad = 0;
 };
 

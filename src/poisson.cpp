@@ -156,11 +156,7 @@ void PoissonSolver::Solve(vector<double> rho)
             }
             else if (_faceBC[face->index].type == PoissonBCType::Neumann)
             {
-                throw runtime_error("Not implemented");
-
-                // rhs(i) -= _faceBC[face->index].gradient.DotProduct(face->normal) * face->area;
-
-                // rhs(i) -= _faceBC[face->index].normalGrad * face->area;
+                rhs(i) -= _faceBC[face->index].normalGrad * face->area;
             }
         }
     }
@@ -240,9 +236,7 @@ void PoissonSolver::Solve(vector<double> rho)
             }
             else if (_faceBC[face->index].type == PoissonBCType::Neumann)
             {
-                throw runtime_error("Not implemented");
-
-                // crossDiff = 0;
+                crossDiff = 0;
             }
 
             rhs(i) -= crossDiff;
@@ -258,6 +252,7 @@ void PoissonSolver::Solve(vector<double> rho)
 }
 
 // Least-Square Gradient
+// TODO: Rewrite to make it easier to read
 vector<Point> PoissonSolver::Gradient()
 {
     assert(!_solution.empty());
@@ -270,6 +265,12 @@ vector<Point> PoissonSolver::Gradient()
         array<Point, 4> dist;
         
         bool neumann = false;
+
+        // TODO: Rename it
+        int iN;
+        double normGrad;
+        Point nN;
+
         for (int i = 0; i < 4; i++)
         {
             Face* face = tet->faces[i];
@@ -286,19 +287,11 @@ vector<Point> PoissonSolver::Gradient()
             }
             else if (_faceBC[face->index].type == PoissonBCType::Neumann)
             {
-                throw runtime_error("Not implemented");
+                neumann = true;
 
-                // TODO: Gradient -> Normal derivative
-                // neumann = true;
-                // gradient[tet->index] = _faceBC[face->index].gradient;
-
-                // Point d = face->centroid - tet->centroid;
-                // double distToFace = face->normal.DotProduct(d);
-
-                // Point vecToTri = face->normal * distToFace;
-
-                // adjVal[i] = 2 * distToFace * _faceBC[face->index].normalGrad;
-                // dist[i] = vecToTri * 2;
+                iN = i;
+                nN = face->normal;
+                normGrad = _faceBC[face->index].normalGrad;
             }
             else if (_faceBC[face->index].type == PoissonBCType::Periodic)
             {
@@ -330,6 +323,7 @@ vector<Point> PoissonSolver::Gradient()
                         m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
                 }
             }
+
             Eigen::Vector3d rhs;
             for (int k = 0; k < 3; k++)
             {
@@ -337,6 +331,46 @@ vector<Point> PoissonSolver::Gradient()
                 for (int j = 0; j < 4; j++)
                     rhs(k) += -2 * weights[j] * dist[j].coords[k] * (val - adjVal[j]);
             }
+
+            Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
+            gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
+        }
+        else
+        {
+            // TODO: What if there are more than one Neumann face?
+
+            Eigen::Matrix3d m;
+            for (int k = 0; k < 2; k++)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    m(k, i) = 0;
+                    for (int j = 0; j < 4; j++) {
+                        if (j == iN)
+                            continue;
+
+                        m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
+                    }
+                }
+            }
+
+            for (int i = 0; i < 3; i++)
+                m(2, i) = nN.coords[i];
+
+            Eigen::Vector3d rhs;
+            for (int k = 0; k < 2; k++)
+            {
+                rhs(k) = 0;
+                for (int j = 0; j < 4; j++)
+                {
+                    if (j == iN)
+                        continue;
+
+                    rhs(k) += -2 * weights[j] * dist[j].coords[k] * (val - adjVal[j]);
+                }
+            }
+
+            rhs(2) = normGrad;
 
             Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
             gradient[tet->index] = Point({grad(0), grad(1), grad(2)});

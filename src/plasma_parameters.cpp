@@ -116,4 +116,15 @@ vector<double> ScalarField(const Mesh* mesh, function<double(const Point&)> dens
 
     return density;
 }
+
+double DebyeLength(double temperature, double density, double charge)
+{
+    return sqrt(epsilon0 * boltzConst * temperature / density) / charge;
+}
+
+double PlasmaFrequency(double density, double charge, double mass)
+{
+    return charge * sqrt(density / (mass * epsilon0));
+}
+
 }

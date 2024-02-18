@@ -13,10 +13,10 @@ int main()
 {
     Timer timer;
 
-    string meshFileName = "../data/meshes/test_mesh_mixed_fine.msh";
+    string meshFileName = "../data/meshes/fully_periodic_coarse.msh";
     Mesh mesh(meshFileName);
     mesh.PrintBoundaryLabels();
-    mesh.SetPeriodicBounaries({{1, 2}/*, {3, 4}*/});
+    mesh.SetPeriodicBounaries({{3, 4}, {5, 6}});
     mesh.Reconstruct();
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
@@ -47,10 +47,8 @@ int main()
     // solver.SetBC(5, dirichletBC);
     // solver.SetBC(6, neumannBC);
 
-    solver.SetBC(3, PoissonBC({PoissonBCType::Dirichlet, 1, 0}));
-    solver.SetBC(4, PoissonBC({PoissonBCType::Dirichlet, 2, 0}));
-    solver.SetBC(5, PoissonBC({PoissonBCType::Neumann, 0, -2}));
-    solver.SetBC(6, PoissonBC({PoissonBCType::Neumann, 0, -1}));
+    solver.SetBC(1, PoissonBC({PoissonBCType::Neumann, 0, 2}));
+    solver.SetBC(2, PoissonBC({PoissonBCType::Dirichlet, 0, 0}));
 
     solver.Initialize();
 
@@ -58,7 +56,7 @@ int main()
 
     auto rhoFunc = [](const Point& p) 
     {
-        return 0;
+        return -1;
         // return 2 * 4 * pi * pi * sin((p.coords[0] + p.coords[1]) * 2 * pi);
     };
 

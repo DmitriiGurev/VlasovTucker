@@ -35,6 +35,7 @@ public:
     void SetMaxwellPDF(const MaxwellPDF& paramsPDF);
 
     std::vector<double> Density() const;
+    std::vector<std::array<double, 3>> Velocity() const;
 
     void SetCompressionError(double error);
     double CompressionError() const;

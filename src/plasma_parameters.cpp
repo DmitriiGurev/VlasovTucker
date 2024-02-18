@@ -91,6 +91,23 @@ vector<double> PlasmaParameters<TensorType>::Density() const
 }
 
 template <typename TensorType>
+vector<array<double, 3>> PlasmaParameters<TensorType>::Velocity() const {
+    vector<array<double, 3>> result(_mesh->tets.size());
+
+    // TODO: Do it in parallel
+    for (int i = 0; i < _mesh->tets.size(); i++)
+    {
+        for (int k = 0; k < 3; k++)
+        {
+            TensorType vPDF = TensorType(_vGrid->v[k]) * pdf[i];
+            result[i][k] = vPDF.Sum() * _vGrid->cellVolume;
+        }
+    }
+
+    return result;
+}
+
+template <typename TensorType>
 void PlasmaParameters<TensorType>::SetCompressionError(double error)
 {
     _comprErr = error;

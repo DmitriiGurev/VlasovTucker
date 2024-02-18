@@ -15,7 +15,7 @@ class Mesh
 public:
     Mesh(std::string mshFile);
 
-    void Reconstruct();
+    void Reconstruct(double scaleFactor = 1);
 
     std::unordered_map<int, std::vector<std::string>> BoundaryLabels() const;
     void PrintBoundaryLabels() const;
@@ -26,7 +26,7 @@ public:
     ~Mesh();
 
 private:
-    void _ExtractPoints();
+    void _ExtractPoints(double scaleFactor);
     void _ExtractTetsAndFaces();
     void _LabelBoundaryFaces();
     void _FillAdjacencyInfo();

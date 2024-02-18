@@ -76,10 +76,10 @@ std::vector<std::array<int, 2>> Mesh::PeriodicBoundaries() const
     return _periodicPairs;
 }
 
-void Mesh::Reconstruct()
+void Mesh::Reconstruct(double scaleFactor)
 {
     // Fill the vector of nodes
-    _ExtractPoints();
+    _ExtractPoints(scaleFactor);
 
     // Fill the vectors of tetrahedra and faces
     _ExtractTetsAndFaces();
@@ -95,13 +95,15 @@ void Mesh::Reconstruct()
     _ConfigurePeriodicity();
 }
 
-void Mesh::_ExtractPoints()
+void Mesh::_ExtractPoints(double scaleFactor)
 {
     for (int i = 0; i < _mshSpec.nodes.num_nodes; i++)
 	{
         Point* point = new Point({_mshSpec.nodes.entity_blocks[0].data[3 * i],
                                   _mshSpec.nodes.entity_blocks[0].data[3 * i + 1],
                                   _mshSpec.nodes.entity_blocks[0].data[3 * i + 2]});
+
+        *point = *point * scaleFactor; // scaling
 
         point->index = points.size(); // insertion index
 

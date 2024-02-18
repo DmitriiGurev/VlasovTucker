@@ -28,6 +28,8 @@ public:
     PoissonSolver();
     PoissonSolver(const Mesh* mesh);
 
+    PoissonSolver& operator=(PoissonSolver&& other);
+
     void SetBC(int boundaryInd, const PoissonBC& bc);
 
     void Initialize();

@@ -33,6 +33,23 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     }
 }
 
+// Move assignment
+PoissonSolver& PoissonSolver::operator=(PoissonSolver&& other)
+{
+    _mesh             = move(other._mesh);
+    _faceBC           = move(other._faceBC);
+    _solutionIsUnique = move(other._solutionIsUnique);
+    _system           = move(other._system);
+    _solution         = move(other._solution);
+    _gradient         = move(other._gradient);
+
+    // Cannot be moved
+    if (_system.size() != 0)
+        _solver.compute(_system);
+
+    return *this;
+}
+
 void PoissonSolver::SetBC(int boundaryInd, const PoissonBC& bc)
 {
     if (bc.type == PoissonBCType::Dirichlet)

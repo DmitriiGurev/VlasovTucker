@@ -11,47 +11,63 @@ using namespace std;
 
 namespace VlasovTucker
 {
+PoissonSolver::PoissonSolver() :
+    _mesh(nullptr)
+{}
+
 PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _mesh(mesh)
 {
-    int nEquations = _mesh->tets.size();
     _solutionIsUnique = false;
 
+    // Label all faces as non-boundary
+    _faceBC = vector<PoissonBC>(_mesh->faces.size());
+
+    // Set periodic BC
+    PoissonBC periodicBC;
+    periodicBC.type = PoissonBCType::Periodic;
+    for (auto planePair : _mesh->PeriodicBoundaries())
+    {
+        for (int boundaryMark : planePair)
+            SetBC(boundaryMark, periodicBC);
+    }
+}
+
+// Move assignment
+PoissonSolver& PoissonSolver::operator=(PoissonSolver&& other)
+{
+    _mesh             = move(other._mesh);
+    _faceBC           = move(other._faceBC);
+    _solutionIsUnique = move(other._solutionIsUnique);
+    _system           = move(other._system);
+    _solution         = move(other._solution);
+    _gradient         = move(other._gradient);
+
+    // Cannot be moved
+    if (_system.size() != 0)
+        _solver.compute(_system);
+
+    return *this;
+}
+
+void PoissonSolver::SetBC(int boundaryInd, const PoissonBC& bc)
+{
+    if (bc.type == PoissonBCType::Dirichlet)
+        _solutionIsUnique = true;
+
+    // TODO: Use a map from entities to faces
     for (int i = 0; i < _mesh->faces.size(); i++)
     {
-        if (_mesh->faces[i]->type == Internal)
-            _faceBC[i].type == PoissonBCType::NonBoundary;
-
-        if (_mesh->faces[i]->type == Boundary)
-        {
-            auto FaceTypeIs = [this](int faceInd, string type)
-            {
-                Face* face = _mesh->faces[faceInd]; 
-                auto& bcTypes = face->bcTypes;
-                return find(bcTypes.begin(), bcTypes.end(), type) != bcTypes.end();
-            };
-
-            // TODO: Set boundary values here
-            if (FaceTypeIs(i, "Poisson: Dirichlet"))
-            {
-                _faceBC[i].type = PoissonBCType::Dirichlet;
-                _solutionIsUnique = true;
-            }
-            else if (FaceTypeIs(i, "Poisson: Neumann"))
-            {
-                _faceBC[i].type = PoissonBCType::Neumann;
-            }
-            else if (FaceTypeIs(i, "Poisson: Periodic"))
-            {
-                _faceBC[i].type = PoissonBCType::Periodic;
-            }
-            else
-            {
-                throw invalid_argument("Invalid BC type");
-            }
-        }
+        Face* face = _mesh->faces[i];
+        if (face->entity == boundaryInd)
+            _faceBC[i] = bc;
     }
-    
+}
+
+void PoissonSolver::Initialize()
+{
+    int nEquations = _mesh->tets.size();
+
     // Assemble the system using Triplets (line, row, value)
     typedef Eigen::Triplet<double> Triplet;
     vector<Triplet> coeffs;
@@ -98,21 +114,13 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
                 coeffs.push_back(Triplet(i, i,
                     -face->area / (d.DotProduct(face->normal))));
             }
-            // else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
-            // {
-            //     Point d = face->centroid - tet->centroid;
-
-            //     coeffs.push_back(Triplet(i, i,
-            //         -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
-
-            //     _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) *
-            //         face->area * _faceBC[face->index].value / d.Abs();
-            // }
-            // else if (_faceBC[face->index].type == PoissonBCType::Neumann)
-            // {
-            //     // TODO: Move this to Solve 
-            //     _rhs(i) -= _faceBC[face->index].gradient.DotProduct(face->normal) * face->area;
-            // }
+            else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
+            {
+                Point d = face->centroid - tet->centroid;
+                
+                coeffs.push_back(Triplet(i, i,
+                    -face->area / (d.DotProduct(face->normal))));
+            }
         }
     }
 
@@ -128,8 +136,6 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
 
 void PoissonSolver::Solve(vector<double> rho)
 {
-    auto rho2 = rho;
-
     // Make the total charge equal to zero
     if (!_solutionIsUnique)
     {
@@ -154,14 +160,32 @@ void PoissonSolver::Solve(vector<double> rho)
             continue;       
         }
 
-        rhs(i) = (-rho[i] / epsilon0) * _mesh->tets[i]->volume;
+        Tet* tet = _mesh->tets[i];
+
+        rhs(i) = (-rho[i] / epsilon0) * tet->volume;
+
+        // Over-relaxed correction
+        for (int j = 0; j < 4; j++)
+        {
+            Face* face = tet->faces[j];
+
+            if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
+            {
+                Point d = face->centroid - tet->centroid;
+
+                rhs(i) -= face->area / (d.DotProduct(face->normal)) * _faceBC[face->index].value;
+            }
+            else if (_faceBC[face->index].type == PoissonBCType::Neumann)
+            {
+                rhs(i) -= _faceBC[face->index].normalGrad * face->area;
+            }
+        }
     }
 
     if (_gradient.empty())
     {
-        cout << Indent(2) << "_gradient.empty()\n";
+        cout << Indent(2) << "Calculate the initial approximation of the gradient\n";
 
-        // Initial approximation of the gradient
         Eigen::VectorXd solution = _solver.solve(rhs);
 
         _solution.resize(_mesh->tets.size());
@@ -181,25 +205,32 @@ void PoissonSolver::Solve(vector<double> rho)
         {
             Tet* tet = _mesh->tets[i];
             Face* face = tet->faces[j];
-            Tet* adjTet = tet->adjTets[j];
-
             Point d = face->centroid - tet->centroid;
-            Point adjD = face->centroid - adjTet->centroid;
 
-            double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
-            double adjG = d.Abs() / (adjD.Abs() + d.Abs());
-            Point grad = _gradient[i];
-            Point adjGrad = _gradient[adjTet->index];
-
-            Point e;
+            double crossDiff;
+            
             if (_faceBC[face->index].type == PoissonBCType::NonBoundary)
             {
-                e = adjTet->centroid - tet->centroid;
+                Tet* adjTet = tet->adjTets[j];
+                Point adjD = face->centroid - adjTet->centroid;
+
+                Point e = adjTet->centroid - tet->centroid;
                 e = e / e.Abs();
+
+                double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
+                double adjG = d.Abs() / (adjD.Abs() + d.Abs());
+                Point grad = _gradient[i];
+                Point adjGrad = _gradient[adjTet->index];
+
+                crossDiff = face->area * (grad * g + adjGrad * adjG).
+                    DotProduct(face->normal - e / e.DotProduct(face->normal));
             }
             else if (_faceBC[face->index].type == PoissonBCType::Periodic)
             {
-                e = adjTet->centroid - tet->centroid;
+                Tet* adjTet = tet->adjTets[j];
+                Point adjD = face->centroid - adjTet->centroid;
+
+                Point e = adjTet->centroid - tet->centroid;
 
                 int k = 0;
                 while (adjTet->adjTets[k] != tet)
@@ -207,26 +238,27 @@ void PoissonSolver::Solve(vector<double> rho)
 
                 e = e + face->centroid - adjTet->faces[k]->centroid;
                 e = e / e.Abs();
+
+                double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
+                double adjG = d.Abs() / (adjD.Abs() + d.Abs());
+                Point grad = _gradient[i];
+                Point adjGrad = _gradient[adjTet->index];
+
+                crossDiff = face->area * (grad * g + adjGrad * adjG).
+                    DotProduct(face->normal - e / e.DotProduct(face->normal));
             }
+            else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
+            {
+                Point e = face->centroid - tet->centroid;
+                e = e / e.Abs();
 
-            // TODO: Move this up?
-            // else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
-            // {
-            //     Point d = face->centroid - tet->centroid;
-
-            //     coeffs.push_back(Triplet(i, i,
-            //         -(d / d.Abs()).DotProduct(face->normal) * face->area / d.Abs()));
-
-            //     _rhs(i) -= (d / d.Abs()).DotProduct(face->normal) *
-            //         face->area * _faceBC[face->index].value / d.Abs();
-            // }
-            // else if (_faceBC[face->index].type == PoissonBCType::Neumann)
-            // {
-            //     _rhs(i) -= _faceBC[face->index].gradient.DotProduct(face->normal) * face->area;
-            // }
-
-            double crossDiff = face->area * (grad * g + adjGrad * adjG).
-                DotProduct(face->normal - e / e.DotProduct(face->normal));
+                crossDiff = face->area * _gradient[i].DotProduct(face->normal -
+                    e / e.DotProduct(face->normal));
+            }
+            else if (_faceBC[face->index].type == PoissonBCType::Neumann)
+            {
+                crossDiff = 0;
+            }
 
             rhs(i) -= crossDiff;
         }
@@ -241,6 +273,7 @@ void PoissonSolver::Solve(vector<double> rho)
 }
 
 // Least-Square Gradient
+// TODO: Rewrite to make it easier to read
 vector<Point> PoissonSolver::Gradient()
 {
     assert(!_solution.empty());
@@ -253,25 +286,35 @@ vector<Point> PoissonSolver::Gradient()
         array<Point, 4> dist;
         
         bool neumann = false;
+
+        // TODO: Rename it
+        int iN;
+        double normGrad;
+        Point nN;
+
         for (int i = 0; i < 4; i++)
         {
+            Face* face = tet->faces[i];
             Tet* adjTet = tet->adjTets[i];
-            if (_faceBC[tet->faces[i]->index].type == PoissonBCType::NonBoundary)
+            if (_faceBC[face->index].type == PoissonBCType::NonBoundary)
             {
                 adjVal[i] = _solution[tet->adjTets[i]->index];
                 dist[i] = adjTet->centroid - tet->centroid;
             }
-            else if (_faceBC[tet->faces[i]->index].type == PoissonBCType::Dirichlet)
+            else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
             {
-                adjVal[i] = _faceBC[tet->faces[i]->index].value;
-                dist[i] = tet->faces[i]->centroid - tet->centroid;
+                adjVal[i] = _faceBC[face->index].value;
+                dist[i] = face->centroid - tet->centroid;
             }
-            else if (_faceBC[tet->faces[i]->index].type == PoissonBCType::Neumann)
+            else if (_faceBC[face->index].type == PoissonBCType::Neumann)
             {
                 neumann = true;
-                gradient[tet->index] = _faceBC[tet->faces[i]->index].gradient;
+
+                iN = i;
+                nN = face->normal;
+                normGrad = _faceBC[face->index].normalGrad;
             }
-            else if (_faceBC[tet->faces[i]->index].type == PoissonBCType::Periodic)
+            else if (_faceBC[face->index].type == PoissonBCType::Periodic)
             {
                 adjVal[i] = _solution[tet->adjTets[i]->index];
                 Point d = (adjTet->centroid - tet->centroid);
@@ -280,7 +323,7 @@ vector<Point> PoissonSolver::Gradient()
                 while (adjTet->adjTets[k] != tet)
                     k++;
 
-                dist[i] = d + tet->faces[i]->centroid - adjTet->faces[k]->centroid;
+                dist[i] = d + face->centroid - adjTet->faces[k]->centroid;
             }
         }
 
@@ -301,6 +344,7 @@ vector<Point> PoissonSolver::Gradient()
                         m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
                 }
             }
+
             Eigen::Vector3d rhs;
             for (int k = 0; k < 3; k++)
             {
@@ -312,12 +356,52 @@ vector<Point> PoissonSolver::Gradient()
             Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
             gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
         }
+        else
+        {
+            // TODO: What if there are more than one Neumann face?
+
+            Eigen::Matrix3d m;
+            for (int k = 1; k < 3; k++)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    m(k, i) = 0;
+                    for (int j = 0; j < 4; j++) {
+                        if (j == iN)
+                            continue;
+
+                        m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
+                    }
+                }
+            }
+
+            for (int i = 0; i < 3; i++)
+                m(0, i) = nN.coords[i];
+
+            Eigen::Vector3d rhs;
+            for (int k = 1; k < 3; k++)
+            {
+                rhs(k) = 0;
+                for (int j = 0; j < 4; j++)
+                {
+                    if (j == iN)
+                        continue;
+
+                    rhs(k) += -2 * weights[j] * dist[j].coords[k] * (val - adjVal[j]);
+                }
+            }
+
+            rhs(0) = normGrad;
+
+            Eigen::Vector3d grad = m.fullPivLu().solve(rhs);
+            gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
+        }
     }
 
     // Smoothing
-    Smoother smoother(_mesh);
-    smoother.factor = 0.7;
-    smoother.nRounds = 5;
+    // Smoother smoother(_mesh);
+    // smoother.factor = 0.7;
+    // smoother.nRounds = 5;
     // smoother.SmoothField(gradient);
 
     return gradient;

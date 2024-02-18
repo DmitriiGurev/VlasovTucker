@@ -35,6 +35,7 @@ public:
     void SetMaxwellPDF(const MaxwellPDF& paramsPDF);
 
     std::vector<double> Density() const;
+    std::vector<std::array<double, 3>> Velocity() const;
 
     void SetCompressionError(double error);
     double CompressionError() const;
@@ -61,4 +62,7 @@ private:
 // TODO: Move it somewhere else?
 std::vector<double> ScalarField(const Mesh* mesh,
     std::function<double(const Point&)> densityFunc);
+
+double DebyeLength(double temperature, double density, double charge);
+double PlasmaFrequency(double density, double charge, double mass);
 }

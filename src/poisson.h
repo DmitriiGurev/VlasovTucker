@@ -19,13 +19,20 @@ struct PoissonBC
 {
     PoissonBCType type = PoissonBCType::NonBoundary;
     double value = 0;
-    Point gradient = Point({0, 0, 0});
+    double normalGrad = 0;
 };
 
 class PoissonSolver
 {
 public:
+    PoissonSolver();
     PoissonSolver(const Mesh* mesh);
+
+    PoissonSolver& operator=(PoissonSolver&& other);
+
+    void SetBC(int boundaryInd, const PoissonBC& bc);
+
+    void Initialize();
 
     void Solve(std::vector<double> rho);
 
@@ -33,18 +40,14 @@ public:
     // TODO: Change to Point
     std::vector<std::array<double, 3>> ElectricField() const;
 
-    // void SetBC(plane, function)
-
 private:
     std::vector<Point> Gradient();
 
 private:
     const Mesh* _mesh;
+    std::vector<PoissonBC> _faceBC;
 
     bool _solutionIsUnique;
-
-    // map<plane, function> _faceBCFunctions
-    std::vector<PoissonBC> _faceBC = std::vector<PoissonBC>(_mesh->faces.size());
 
 	Eigen::SparseMatrix<double> _system;
 
@@ -53,7 +56,7 @@ private:
         Eigen::COLAMDOrdering<int>
         > _solver;
 
-    std::vector<double> _solution /*= std::vector<double>(_mesh->tets.size())*/;
-    std::vector<Point> _gradient /*= std::vector<Point>(_mesh->tets.size())*/;
+    std::vector<double> _solution;
+    std::vector<Point> _gradient;
 };
 }

@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
+
+project(VlasovTucker)
+
 # add_compile_options(-O3 -DNDEBUG -fno-math-errno -march=native)
 add_compile_options(-O3 -fno-math-errno -march=native)
 add_compile_options(-mincoming-stack-boundary=2)
-
-project(VlasovTucker)
 
 include_directories(
     ./include
@@ -14,6 +15,7 @@ include_directories(
 
 add_library(
     vlasov_tucker
+    ./src/primitives.cpp
     ./src/mesh.cpp
     ./src/poisson.cpp
     ./src/velocity_grid.cpp
@@ -35,8 +37,8 @@ set_property(
     PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/libs/MshIO-main/build/libmshio.a
     )
 
-add_executable(run ./src/run.cpp)
-target_link_libraries(run vlasov_tucker libmshio)
-
 # Tests
 add_subdirectory(./test)
+
+# Examples
+add_subdirectory(./examples)

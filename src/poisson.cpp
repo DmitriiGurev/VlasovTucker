@@ -21,7 +21,7 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _solutionIsUnique = false;
 
     // Label all faces as non-boundary
-    _faceBC = std::vector<PoissonBC>(_mesh->faces.size());
+    _faceBC = vector<PoissonBC>(_mesh->faces.size());
 
     // Set periodic BC
     PoissonBC periodicBC;
@@ -361,7 +361,7 @@ vector<Point> PoissonSolver::Gradient()
             // TODO: What if there are more than one Neumann face?
 
             Eigen::Matrix3d m;
-            for (int k = 0; k < 2; k++)
+            for (int k = 1; k < 3; k++)
             {
                 for (int i = 0; i < 3; i++)
                 {
@@ -376,10 +376,10 @@ vector<Point> PoissonSolver::Gradient()
             }
 
             for (int i = 0; i < 3; i++)
-                m(2, i) = nN.coords[i];
+                m(0, i) = nN.coords[i];
 
             Eigen::Vector3d rhs;
-            for (int k = 0; k < 2; k++)
+            for (int k = 1; k < 3; k++)
             {
                 rhs(k) = 0;
                 for (int j = 0; j < 4; j++)
@@ -391,17 +391,17 @@ vector<Point> PoissonSolver::Gradient()
                 }
             }
 
-            rhs(2) = normGrad;
+            rhs(0) = normGrad;
 
-            Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
+            Eigen::Vector3d grad = m.fullPivLu().solve(rhs);
             gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
         }
     }
 
     // Smoothing
-    Smoother smoother(_mesh);
-    smoother.factor = 0.7;
-    smoother.nRounds = 5;
+    // Smoother smoother(_mesh);
+    // smoother.factor = 0.7;
+    // smoother.nRounds = 5;
     // smoother.SmoothField(gradient);
 
     return gradient;

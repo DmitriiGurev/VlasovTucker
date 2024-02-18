@@ -181,7 +181,7 @@ void WriteDistributionVTK(string fileName,
         {
             for (int i2 = 0; i2 < n2; i2++)
             {
-                out << 1 << " " << i2 + i1 * n1 + i0 * n1 * n0 << "\n";
+                out << 1 << " " << i2 + i1 * n2 + i0 * n1 * n2 << "\n";
             }
         }
     } 

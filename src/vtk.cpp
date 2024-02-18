@@ -114,6 +114,12 @@ void WriteMeshVTK(string fileName,
     for (auto f : mesh.faces)
         out << 5 << "\n";
 
+    out << "CELL_DATA " << mesh.faces.size() << "\n";
+    out << "SCALARS " << "mark" << " int 1\n";
+    out << "LOOKUP_TABLE default\n";
+    for (int i = 0; i < mesh.faces.size(); i++)
+        out << mesh.faces[i]->entity << "\n";
+
     out.close();
 
     // Write tetrahedra

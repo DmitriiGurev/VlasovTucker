@@ -2,6 +2,7 @@
 
 #include "mesh.h"
 #include "plasma_parameters.h"
+#include "poisson.h"
 #include "typedefs.h"
 #include "log.h"
 
@@ -9,10 +10,27 @@
 #include <map>
 #include <limits.h>
 
-// TODO: Add BC
-
 namespace VlasovTucker
 {
+// Boundary conditions
+enum class FieldBCType { ConstantPotential, ChargedPlane };
+
+struct FieldBC
+{
+    FieldBCType type;
+    double potential;
+    double chargeDenity;
+};
+
+enum class ParticleBCType { NonBoundary, Periodic, ConstantSource, AbsorbingWall, Free };
+
+template <typename TensorType>
+struct ParticleBC
+{
+    ParticleBCType type = ParticleBCType::NonBoundary;
+    TensorType sourcePDF;
+};
+
 template <typename TensorType>
 class Solver
 {
@@ -21,7 +39,10 @@ public:
            const VelocityGrid* velocityGrid,
            PlasmaParameters<TensorType>* plasmaParameters);
 
-    void Solve(int nIterations);
+    void SetFieldBC(int boundaryInd, const FieldBC& bc);
+    void SetParticleBC(int boundaryInd, const ParticleBC<TensorType>& bc);
+
+    void Solve(double timeStep, int nIterations);
 
 private:
     void _PrecomputeNormalTensors();
@@ -34,9 +55,13 @@ private:
     const Mesh* _mesh;
     const VelocityGrid* _vGrid;
 
+    PoissonSolver _poissonSolver;
+
     PlasmaParameters<TensorType>* _plParams;
 
-    // std::vector<ParticleBC> _boundaryConditions;
+    std::vector<ParticleBC<TensorType>> _faceParticleBC;
+    std::unordered_map<int, double> _wallCharge;
+    std::unordered_map<int, double> _wallArea;
 
     Log _log;
 

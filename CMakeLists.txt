@@ -37,8 +37,8 @@ set_property(
     PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/libs/MshIO-main/build/libmshio.a
     )
 
-add_executable(run ./src/run.cpp)
-target_link_libraries(run vlasov_tucker libmshio)
-
 # Tests
 add_subdirectory(./test)
+
+# Examples
+add_subdirectory(./examples)

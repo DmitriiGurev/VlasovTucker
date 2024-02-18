@@ -1,21 +1,15 @@
 #include <iostream>
 #include <string>
 
-#include "mesh.h"
-#include "typedefs.h"
-#include "plasma_parameters.h"
-#include "vtk.h"
-#include "velocity_grid.h"
-#include "solver.h"
-#include "log.h"
-#include "timer.h"
-#include "full.h"
-#include "tucker.h"
+#include "header.h"
 
 using namespace VlasovTucker;
 using namespace std;
 
+// Tensor format
 using TensorType = Full;
+
+// TODO: Update
 
 int main(int argc, char *argv[])
 {
@@ -55,5 +49,5 @@ int main(int argc, char *argv[])
 
     Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
     solver.writeStep = 100;
-    solver.Solve(100000);
+    solver.Solve(1e-4, 100000);
 }

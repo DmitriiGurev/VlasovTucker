@@ -11,6 +11,10 @@ using namespace std;
 
 namespace VlasovTucker
 {
+PoissonSolver::PoissonSolver() :
+    _mesh(nullptr)
+{}
+
 PoissonSolver::PoissonSolver(const Mesh* mesh) :
     _mesh(mesh)
 {

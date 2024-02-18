@@ -25,6 +25,7 @@ struct PoissonBC
 class PoissonSolver
 {
 public:
+    PoissonSolver();
     PoissonSolver(const Mesh* mesh);
 
     void SetBC(int boundaryInd, const PoissonBC& bc);

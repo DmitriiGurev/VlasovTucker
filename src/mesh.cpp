@@ -212,17 +212,20 @@ void SortFacesInPlane(vector<Face*>& plane)
 
     sort(plane.begin(), plane.end(), [&](const auto& lhs, const auto& rhs)
     {
-        if (!ApproxEqual(lhs->centroid.coords[0], rhs->centroid.coords[0]))
+        Point lC = lhs->centroid;
+        Point rC = rhs->centroid;
+
+        if (!ApproxEqual(lC[0], rC[0]))
         {
-            return lhs->centroid.coords[0] < rhs->centroid.coords[0];
+            return lC[0] < rC[0];
         }
-        else if (!ApproxEqual(lhs->centroid.coords[1], rhs->centroid.coords[1]))
+        else if (!ApproxEqual(lC[1], rC[1]))
         {
-            return lhs->centroid.coords[1] < rhs->centroid.coords[1];
+            return lC[1] < rC[1];
         }
-        else if (!ApproxEqual(lhs->centroid.coords[2], rhs->centroid.coords[2]))
+        else if (!ApproxEqual(lC[2], rC[2]))
         {
-            return lhs->centroid.coords[2] < rhs->centroid.coords[2];
+            return lC[2] < rC[2];
         }
         else
         {

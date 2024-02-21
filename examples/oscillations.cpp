@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     plasmaParams.charge = 10;
 
     MaxwellPDF paramsPDF;
-    auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi)); };
+    auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p[0] * (2 * pi)); };
     paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
     paramsPDF.mostProbableV = {0, 0, 0};

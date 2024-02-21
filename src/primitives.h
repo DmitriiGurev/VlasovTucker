@@ -21,6 +21,10 @@ public:
     int index; // insertion index
 
 public:
+    // Coordinate access
+    double operator[](int i) const;
+    double& operator[](int i);
+
     Point operator+(const Point& p) const;
     Point operator-(const Point& p) const;
     Point operator/(double d) const;

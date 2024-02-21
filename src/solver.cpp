@@ -270,9 +270,9 @@ void Solver<TensorType>::_PrecomputeNormalTensors()
         for (int f = 0; f < 4; f++)
         {
             Point normal = tet->faces[f]->normal;
-            Tensor3d vNormal = normal.coords[0] * _vGrid->v[0] +
-                               normal.coords[1] * _vGrid->v[1] +
-                               normal.coords[2] * _vGrid->v[2]; 
+            Tensor3d vNormal = normal[0] * _vGrid->v[0] +
+                               normal[1] * _vGrid->v[1] +
+                               normal[2] * _vGrid->v[2]; 
 
             Tensor3d vNormalAbs = vNormal.abs();
 

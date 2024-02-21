@@ -57,7 +57,7 @@ int main()
     auto rhoFunc = [](const Point& p) 
     {
         return -1;
-        // return 2 * 4 * pi * pi * sin((p.coords[0] + p.coords[1]) * 2 * pi);
+        // return 2 * 4 * pi * pi * sin((p[0] + p[1]) * 2 * pi);
     };
 
     vector<double> rho = ScalarField(&mesh, rhoFunc);
@@ -81,7 +81,7 @@ int main()
     for (int i = 0; i < mesh.tets.size(); i++)
     {
         Point c = mesh.tets[i]->centroid;
-        double analytical = sin((c.coords[0] + c.coords[1]) * 2 * M_PI);
+        double analytical = sin((c[0] + c[1]) * 2 * M_PI);
         double actual = phi[i];
         err += abs(analytical - actual);
 
@@ -97,7 +97,7 @@ int main()
     for (int i = 0; i < mesh.tets.size(); i++)
     {
         Point c = mesh.tets[i]->centroid;
-        double cosine = cos((c.coords[0] + c.coords[1]) * 2 * M_PI);
+        double cosine = cos((c[0] + c[1]) * 2 * M_PI);
         Point analytical({1, 1, 0});
         analytical = analytical * cosine * (2 * M_PI);
 

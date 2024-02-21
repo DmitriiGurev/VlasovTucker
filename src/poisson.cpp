@@ -341,7 +341,7 @@ vector<Point> PoissonSolver::Gradient()
                 {
                     m(k, i) = 0;
                     for (int j = 0; j < 4; j++)
-                        m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
+                        m(k, i) += 2 * weights[j] * dist[j][k] * dist[j][i];
                 }
             }
 
@@ -350,7 +350,7 @@ vector<Point> PoissonSolver::Gradient()
             {
                 rhs(k) = 0;
                 for (int j = 0; j < 4; j++)
-                    rhs(k) += -2 * weights[j] * dist[j].coords[k] * (val - adjVal[j]);
+                    rhs(k) += -2 * weights[j] * dist[j][k] * (val - adjVal[j]);
             }
 
             Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
@@ -370,13 +370,13 @@ vector<Point> PoissonSolver::Gradient()
                         if (j == iN)
                             continue;
 
-                        m(k, i) += 2 * weights[j] * dist[j].coords[k] * dist[j].coords[i];
+                        m(k, i) += 2 * weights[j] * dist[j][k] * dist[j][i];
                     }
                 }
             }
 
             for (int i = 0; i < 3; i++)
-                m(0, i) = nN.coords[i];
+                m(0, i) = nN[i];
 
             Eigen::Vector3d rhs;
             for (int k = 1; k < 3; k++)
@@ -387,7 +387,7 @@ vector<Point> PoissonSolver::Gradient()
                     if (j == iN)
                         continue;
 
-                    rhs(k) += -2 * weights[j] * dist[j].coords[k] * (val - adjVal[j]);
+                    rhs(k) += -2 * weights[j] * dist[j][k] * (val - adjVal[j]);
                 }
             }
 

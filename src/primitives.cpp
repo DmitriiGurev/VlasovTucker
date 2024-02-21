@@ -9,6 +9,16 @@ namespace VlasovTucker
 Point::Point(array<double, 3> coords) :
     coords(coords) {}
 
+double Point::operator[](int i) const
+{
+    return coords[i];
+}
+
+double& Point::operator[](int i)
+{
+    return coords[i];
+}
+
 Point Point::operator+(const Point& p) const
 {
     return Point({coords[0] + p.coords[0],
@@ -67,7 +77,7 @@ Point Point::CrossProduct(const Point& p) const
 
 ostream& operator<<(ostream& os, const Point& p)
 {
-    os << "Point: {" << p.coords[0] << ", " << p.coords[1]  << ", " << p.coords[2] << "}";
+    os << "Point: {" << p[0] << ", " << p[1]  << ", " << p[2] << "}";
     return os;
 }
 

@@ -50,7 +50,9 @@ void Mesh::PrintBoundaryLabels() const
     for (auto pair : _entityToPhysGroups)
     {
         int number = pair.first;
-        int nLabels = pair.second.size();
+        auto& labels = pair.second;
+
+        int nLabels = labels.size();
 
         cout << number << ": {";
         if (nLabels == 0)
@@ -60,8 +62,8 @@ void Mesh::PrintBoundaryLabels() const
         else
         {
             for (int i = 0; i < nLabels - 1; i++) 
-                cout << pair.second[i] << ", ";
-            cout << pair.second[nLabels - 1] << "}\n";
+                cout << labels[i] << ", ";
+            cout << labels[nLabels - 1] << "}\n";
         }
     }
 }

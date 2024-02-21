@@ -91,8 +91,8 @@ vector<double> PlasmaParameters<TensorType>::Density() const
 }
 
 template <typename TensorType>
-vector<array<double, 3>> PlasmaParameters<TensorType>::Velocity() const {
-    vector<array<double, 3>> result(_mesh->tets.size());
+vector<Vector3d> PlasmaParameters<TensorType>::Velocity() const {
+    vector<Vector3d> result(_mesh->tets.size());
 
     // TODO: Do it in parallel
     for (int i = 0; i < _mesh->tets.size(); i++)

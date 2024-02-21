@@ -6,7 +6,7 @@ using namespace std;
 
 namespace VlasovTucker
 {
-Point::Point(array<double, 3> coords) :
+Point::Point(Vector3d coords) :
     coords(coords) {}
 
 double Point::operator[](int i) const

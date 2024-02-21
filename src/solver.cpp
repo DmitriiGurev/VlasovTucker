@@ -106,7 +106,7 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
         // Solve the Poisson equation
         _poissonSolver.Solve(rho);
         vector<double> phi = _poissonSolver.Potential();
-        vector<array<double, 3>> field = _poissonSolver.ElectricField();
+        vector<Vector3d> field = _poissonSolver.ElectricField();
 
         timer.PrintSectionTime(Indent(2) + "Done");
 

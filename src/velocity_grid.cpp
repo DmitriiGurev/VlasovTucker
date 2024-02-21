@@ -6,9 +6,7 @@ using namespace std;
 
 namespace VlasovTucker
 {
-VelocityGrid::VelocityGrid(array<int, 3> nCells,
-                           array<double, 3> minV,
-                           array<double, 3> maxV) :
+VelocityGrid::VelocityGrid(array<int, 3> nCells, Vector3d minV, Vector3d maxV) :
     nCells(nCells), minV(minV), maxV(maxV)
 {
     nCellsTotal = nCells[0] * nCells[1] * nCells[2];
@@ -54,7 +52,7 @@ VelocityGrid::VelocityGrid(array<int, 3> nCells,
     }
 }
 
-array<double, 3> VelocityGrid::At(int i0, int i1, int i2) const
+Vector3d VelocityGrid::At(int i0, int i1, int i2) const
 {
     return {minV[0] + i0 * step[0],
             minV[1] + i1 * step[1],

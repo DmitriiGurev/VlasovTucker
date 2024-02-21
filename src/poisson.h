@@ -37,10 +37,10 @@ public:
     void Solve(std::vector<double> rho);
 
     const std::vector<double>& Potential() const;
-    std::vector<std::array<double, 3>> ElectricField() const;
+    std::vector<Vector3d> ElectricField() const;
 
 private:
-    std::vector<Point> Gradient();
+    std::vector<Vector3d> Gradient();
 
 private:
     const Mesh* _mesh;
@@ -56,6 +56,6 @@ private:
         > _solver;
 
     std::vector<double> _solution;
-    std::vector<Point> _gradient;
+    std::vector<Vector3d> _gradient;
 };
 }

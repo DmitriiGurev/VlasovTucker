@@ -91,8 +91,8 @@ int main()
     WriteCellScalarDataVTK("phi", mesh, phi);
     WriteCellScalarDataVTK("phi_analytical", mesh, phiAnalytical);
 
-    vector<array<double, 3>> field = solver.ElectricField();
-    vector<array<double, 3>> fieldAnalytical;
+    vector<Vector3d> field = solver.ElectricField();
+    vector<Vector3d> fieldAnalytical;
     double errField = 0;
     for (int i = 0; i < mesh.tets.size(); i++)
     {
@@ -101,7 +101,7 @@ int main()
         Point analytical({1, 1, 0});
         analytical = analytical * cosine * (2 * M_PI);
 
-        Point actual(field[i]);
+        Vector3d actual = field[i];
         errField += (analytical - actual).Abs();
 
         fieldAnalytical.push_back(analytical.coords);

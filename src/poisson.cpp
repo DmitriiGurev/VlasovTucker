@@ -252,7 +252,7 @@ void PoissonSolver::Solve(vector<double> rho)
                 Point e = face->centroid - tet->centroid;
                 e = e / e.Abs();
 
-                crossDiff = face->area * _gradient[i].DotProduct(face->normal -
+                crossDiff = face->area * Point(_gradient[i]).DotProduct(face->normal -
                     e / e.DotProduct(face->normal));
             }
             else if (_faceBC[face->index].type == PoissonBCType::Neumann)
@@ -274,10 +274,10 @@ void PoissonSolver::Solve(vector<double> rho)
 
 // Least-Square Gradient
 // TODO: Rewrite to make it easier to read
-vector<Point> PoissonSolver::Gradient()
+vector<Vector3d> PoissonSolver::Gradient()
 {
     assert(!_solution.empty());
-    vector<Point> gradient(_mesh->tets.size());
+    vector<Vector3d> gradient(_mesh->tets.size());
 
     for (auto tet : _mesh->tets)
     {
@@ -354,7 +354,7 @@ vector<Point> PoissonSolver::Gradient()
             }
 
             Eigen::Vector3d grad = m.colPivHouseholderQr().solve(rhs);
-            gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
+            gradient[tet->index] = {grad(0), grad(1), grad(2)};
         }
         else
         {
@@ -394,15 +394,9 @@ vector<Point> PoissonSolver::Gradient()
             rhs(0) = normGrad;
 
             Eigen::Vector3d grad = m.fullPivLu().solve(rhs);
-            gradient[tet->index] = Point({grad(0), grad(1), grad(2)});
+            gradient[tet->index] = {grad(0), grad(1), grad(2)};
         }
     }
-
-    // Smoothing
-    // Smoother smoother(_mesh);
-    // smoother.factor = 0.7;
-    // smoother.nRounds = 5;
-    // smoother.SmoothField(gradient);
 
     return gradient;
 }
@@ -412,11 +406,14 @@ const vector<double>& PoissonSolver::Potential() const
     return _solution;
 }
 
-vector<array<double, 3>> PoissonSolver::ElectricField() const
+vector<Vector3d> PoissonSolver::ElectricField() const
 {
-    vector<array<double, 3>> field(_mesh->tets.size());
+    vector<Vector3d> field(_mesh->tets.size());
     for (int i = 0; i < _mesh->tets.size(); i++)
-        field[i] = (_gradient[i] * (-1)).coords;
+    {
+        for (int k = 0; k < 3; k++)   
+            field[i][k] = -_gradient[i][k];
+    }
 
     return field;
 }

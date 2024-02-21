@@ -1,5 +1,7 @@
 #pragma once
 
+#include "typedefs.h"
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -13,10 +15,10 @@ class Point
 public:
     Point() {}
 
-    Point(std::array<double, 3> coords);
+    Point(Vector3d coords);
 
 public:
-    std::array<double, 3> coords;
+    Vector3d coords;
 
     int index; // insertion index
 
@@ -27,8 +29,10 @@ public:
 
     Point operator+(const Point& p) const;
     Point operator-(const Point& p) const;
+    friend Point operator-(const Point& p);
     Point operator/(double d) const;
     Point operator*(double d) const;
+    friend Point operator*(double d, const Point& p);
 
     bool operator==(const Point& p) const;
 

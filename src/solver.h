@@ -60,7 +60,7 @@ public:
     // Constant background charge
     double backgroundChargeDensity = 0;
     // External electric field
-    std::array<double, 3> externalField = {0, 0, 0};
+    Vector3d externalField = {0, 0, 0};
 
 private:
     const Mesh* _mesh;

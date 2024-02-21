@@ -99,7 +99,7 @@ Tucker& Tucker::Compress(double precision, int maxRank)
 
 Tensor3d Tucker::Reconstructed() const
 {
-    MatrixXf unfolding = _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(); 
+    MatrixXd unfolding = _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(); 
     return Folding(_n[0], _n[1], _n[2], unfolding, 0);
 }
 

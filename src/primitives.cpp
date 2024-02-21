@@ -33,6 +33,11 @@ Point Point::operator-(const Point& p) const
                   coords[2] - p.coords[2]});
 }
 
+Point operator-(const Point& p)
+{
+    return (-1) * p;
+}
+
 Point Point::operator/(double d) const
 {
     return Point({coords[0] / d,
@@ -45,6 +50,11 @@ Point Point::operator*(double d) const
     return Point({coords[0] * d,
                   coords[1] * d,
                   coords[2] * d});
+}
+
+Point operator*(double d, const Point& p)
+{
+    return p * d;
 }
 
 bool Point::operator==(const Point& p) const

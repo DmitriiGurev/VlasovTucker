@@ -11,13 +11,7 @@
 
 namespace VlasovTucker
 {
-enum class ParticleType
-{
-    Electron,
-    Ion,
-    Neutral,
-    Custom
-};
+enum class ParticleType { Electron, Ion, Neutral, Custom };
 
 struct MaxwellPDF
 {

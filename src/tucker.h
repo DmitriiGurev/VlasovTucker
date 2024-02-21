@@ -24,27 +24,28 @@ public:
 	Tucker(const Tensor3d& core,
 		   const std::array<Eigen::MatrixXd, 3>& u);
 
-	int Size() const;
+	Tucker& Compress(double precision = 0, int maxRank = 1e+6);
 
+	Tensor3d Reconstructed() const;
+
+	int Size() const;
 	std::array<int, 3> Dimensions() const;
 	std::array<int, 3> Ranks() const;
 
 	std::array<Eigen::MatrixXd, 3> U() const;
 	Tensor3d Core() const;
 
-	double operator()(int i0, int i1, int i2) const;
-
-	Tensor3d Reconstructed() const;
-
+	// Reductions
 	double Sum() const;
 	double Norm() const;
 
 	Tucker Abs() const;
 
-	Tucker& Compress(double precision = 0, int maxRank = 1e+6);
+public:
+	// Element access
+	double operator()(int i0, int i1, int i2) const;
 
-	friend std::ostream& operator<<(std::ostream& out, const Tucker& t);
-
+	// Element-wise operations
 	Tucker& operator+=(const Tucker& t);
 	Tucker& operator-=(const Tucker& t);
 	Tucker& operator*=(const Tucker& t);
@@ -56,6 +57,8 @@ public:
 	friend Tucker operator*(double d, const Tucker& t);
 	friend Tucker operator*(const Tucker& t, double d);
 	friend Tucker operator-(const Tucker& t);
+
+	friend std::ostream& operator<<(std::ostream& out, const Tucker& t);
 
 private:
 	void _ComputeU(const Tensor3d& tensor,

@@ -257,8 +257,11 @@ void Mesh::_ConfigurePeriodicity()
             pairOfPlanes[i] = plane;
         }
 
-        // TODO: Throw a runtime error with an explanation
-        assert(pairOfPlanes[0].size() == pairOfPlanes[1].size());
+        if (pairOfPlanes[0].size() != pairOfPlanes[1].size())
+        {
+            throw runtime_error("Mismatch between the sizes of the periodic planes " +
+                to_string(pairInds[0]) + " and  " + to_string(pairInds[1]));
+        }
 
         pairsOfPeriodicPlanes.push_back(pairOfPlanes);
     }

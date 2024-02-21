@@ -37,7 +37,6 @@ public:
     void Solve(std::vector<double> rho);
 
     const std::vector<double>& Potential() const;
-    // TODO: Change to Point
     std::vector<std::array<double, 3>> ElectricField() const;
 
 private:

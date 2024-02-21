@@ -46,10 +46,21 @@ public:
 
 private:
     void _PrecomputeNormalTensors();
+
+    void _InitializeWallCharge();
+
+    TensorType _Flux(const Tet* tet, int f, ParticleBCType bcType) const;
     TensorType _PDFDerivative(const Tet* tet, int ind) const;
 
+    void _WriteResults(int iteration);
+    
 public:
     int writeStep = INT_MAX;
+
+    // Constant background charge
+    double backgroundChargeDensity = 0;
+    // External electric field
+    std::array<double, 3> externalField = {0, 0, 0};
 
 private:
     const Mesh* _mesh;

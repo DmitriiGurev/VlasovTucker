@@ -66,6 +66,9 @@ int main()
     // 4. Initialize the solver
     Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
 
+    // Let the system be initially electroneutral
+    solver.backgroundChargeDensity = elCharge * plasmaParams.Density()[0];
+
     // Set boundary conditions
     // Charged plane (Neumann BC)
     FieldBC fieldBC1;

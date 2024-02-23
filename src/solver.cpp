@@ -53,7 +53,7 @@ void Solver<TensorType>::SetFieldBC(int boundaryInd, const FieldBC& bc)
     else if (bc.type == FieldBCType::ChargedPlane)
     {
         poissonBC.type = PoissonBCType::Neumann;
-        poissonBC.normalGrad = bc.chargeDenity / (2 * epsilon0); 
+        poissonBC.normalGrad = bc.chargeDensity / (2 * epsilon0); 
     }
     _poissonSolver.SetBC(boundaryInd, poissonBC);
 }
@@ -129,16 +129,16 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
             for (int f = 0; f < 4; f++)
             {
                 Face* face = tet->faces[f];
-                ParticleBCType bcType = _faceParticleBC[face->index].type;
-                TensorType flux = _Flux(tet, f, bcType);
+                const auto& bc = _faceParticleBC[face->index];
+                TensorType flux = _Flux(tet, f, bc.type);
                 rhs[tetInd] -= face->area / tet->volume * flux;
 
                 // Update the charge of absorbing planes
-                if (bcType == ParticleBCType::AbsorbingWall)
+                if (bc.type == ParticleBCType::Absorbing && bc.collectCharge)
                 {
                     double particlesAbsorbed = timeStep * face->area * flux.Sum() *
                         _vGrid->cellVolume;
-                        
+
                     #pragma omp critical
                     _wallCharge[face->entity] += _plParams->charge * particlesAbsorbed;
                         
@@ -183,7 +183,7 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
         timer.PrintSectionTime(Indent(2) + "Done");
 
         _log << Indent(1) << "Update the boundary conditions\n";
-        // If a tetrahedron has a face with the ConstantSource boundary condition, set the source
+        // If a tetrahedron has a face with the Source boundary condition, set the source
         // PDF in this tetrahedron
         #pragma omp parallel for
         for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
@@ -191,7 +191,7 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
             for (int f = 0; f < 4; f++)
             {
                 Face* face = _mesh->tets[tetInd]->faces[f];
-                if (_faceParticleBC[face->index].type == ParticleBCType::ConstantSource)
+                if (_faceParticleBC[face->index].type == ParticleBCType::Source)
                 {
                     _plParams->pdf[tetInd] = _faceParticleBC[face->index].sourcePDF;
                     break;
@@ -209,7 +209,7 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
 
             FieldBC fieldBC;
             fieldBC.type = FieldBCType::ChargedPlane;
-            fieldBC.chargeDenity = charge / area;
+            fieldBC.chargeDensity = charge / area;
 
             SetFieldBC(boundaryInd, fieldBC);
         }
@@ -298,7 +298,8 @@ void Solver<TensorType>::_InitializeWallCharge()
 {
     for (auto face : _mesh->faces)
     {
-        if (_faceParticleBC[face->index].type == ParticleBCType::AbsorbingWall)
+        const auto& bc = _faceParticleBC[face->index];
+        if (bc.type == ParticleBCType::Absorbing && bc.collectCharge)
         {
             if (!_wallCharge.count(face->entity))
             {
@@ -326,7 +327,7 @@ TensorType Solver<TensorType>::_Flux(const Tet* tet, int f, ParticleBCType bcTyp
             _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][f] *
             (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
     }
-    else if (bcType == ParticleBCType::AbsorbingWall)
+    else if (bcType == ParticleBCType::Absorbing)
     {
         flux = 0.5 * (_vNormal[tetInd][f] * _plParams->pdf[tetInd] +
             _vNormalAbs[tetInd][f] * _plParams->pdf[tetInd]);

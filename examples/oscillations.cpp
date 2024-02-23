@@ -9,14 +9,12 @@ using namespace std;
 // Tensor format
 using TensorType = Full;
 
-// TODO: Update
-
-int main(int argc, char *argv[])
+int main()
 {
     Timer timer;
     timer.StartSection();
     
-    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
+    string meshFileName = "../data/meshes/rectangle_fine.msh";
     Mesh mesh(meshFileName);
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{1, 2}, {3, 4}, {5, 6}});

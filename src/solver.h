@@ -19,16 +19,17 @@ struct FieldBC
 {
     FieldBCType type;
     double potential;
-    double chargeDenity;
+    double chargeDensity;
 };
 
-enum class ParticleBCType { NonBoundary, Periodic, ConstantSource, AbsorbingWall, Free };
+enum class ParticleBCType { NonBoundary, Periodic, Source, Absorbing, Reflecting, Free };
 
 template <typename TensorType>
 struct ParticleBC
 {
     ParticleBCType type = ParticleBCType::NonBoundary;
     TensorType sourcePDF;
+    bool collectCharge = false;
 };
 
 template <typename TensorType>

@@ -9,8 +9,6 @@
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
 
-using namespace std;
-
 namespace VlasovTucker
 {
 enum class PoissonBCType { NonBoundary, Neumann, Dirichlet, Periodic };
@@ -44,8 +42,13 @@ public:
 
 private:
     std::vector<Vector3d> _Gradient();
+    Vector3d _WeightedGradient(Tet* tet, int f) const;
 
-    void _FillLine(vector<Triplet>& coeffs, int i);
+    void _FillLineCoeffs(std::vector<Triplet>& coeffs, int i) const;
+    void _FillLineRHS(Eigen::VectorXd& rhs, int i) const;
+    void _CorrectRHS(Eigen::VectorXd& rhs, int i) const;
+
+    void _MakeNeutral(std::vector<double>& rho) const;
 
 private:
     const Mesh* _mesh;
@@ -63,4 +66,7 @@ private:
     std::vector<double> _solution;
     std::vector<Vector3d> _gradient;
 };
+
+std::vector<double> EigenVectorToStdVector(const Eigen::VectorXd& eigenVector);
+
 }

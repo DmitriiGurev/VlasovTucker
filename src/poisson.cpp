@@ -66,7 +66,10 @@ void PoissonSolver::Initialize()
     // Assemble the system
     vector<Triplet> coeffs;
     for (int i = 0; i < _mesh->tets.size(); i++)
-        _FillLine(coeffs, i);
+    {
+        // Over-relaxed correction
+        _FillLineCoeffs(coeffs, i);
+    }
 
     _system = Eigen::SparseMatrix<double>(nEquations, nEquations);
 	_system.setFromTriplets(coeffs.begin(), coeffs.end());
@@ -78,7 +81,7 @@ void PoissonSolver::Initialize()
     _solver.compute(_system);
 }
 
-void PoissonSolver::_FillLine(vector<Triplet>& coeffs, int i)
+void PoissonSolver::_FillLineCoeffs(vector<Triplet>& coeffs, int i) const
 {
     if (!_solutionIsUnique && i == 0)
     {
@@ -88,7 +91,6 @@ void PoissonSolver::_FillLine(vector<Triplet>& coeffs, int i)
         return;
     }
 
-    // Over-relaxed correction
     for (int j = 0; j < 4; j++)
     {
         Tet* tet = _mesh->tets[i];
@@ -136,138 +138,165 @@ void PoissonSolver::Solve(vector<double> rho)
 {
     // Make the total charge equal to zero
     if (!_solutionIsUnique)
-    {
-        cout << Indent(2) << "Solution is not unique\n";
-        double sum = 0;
-        double vol = 0;
-        for (int i = 0; i < _mesh->tets.size(); i++)
-        {
-            sum += rho[i] * _mesh->tets[i]->volume;
-            vol += _mesh->tets[i]->volume;
-        }
-        for (int i = 0; i < _mesh->tets.size(); i++)
-            rho[i] -= sum / vol;
-    }
+        _MakeNeutral(rho);
 
     Eigen::VectorXd rhs(_mesh->tets.size());
     for (int i = 0; i < _mesh->tets.size(); i++)
     {
-        if (!_solutionIsUnique && i == 0)
-        {
-            rhs(0) = 0;
-            continue;       
-        }
-
-        Tet* tet = _mesh->tets[i];
-
-        rhs(i) = (-rho[i] / epsilon0) * tet->volume;
+        rhs(i) = (-rho[i] / epsilon0) * _mesh->tets[i]->volume;
 
         // Over-relaxed correction
-        for (int j = 0; j < 4; j++)
-        {
-            Face* face = tet->faces[j];
-
-            if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
-            {
-                Point d = face->centroid - tet->centroid;
-
-                rhs(i) -= face->area / (d.DotProduct(face->normal)) * _faceBC[face->index].value;
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Neumann)
-            {
-                rhs(i) -= _faceBC[face->index].normalGrad * face->area;
-            }
-        }
+        _FillLineRHS(rhs, i);
     }
 
     if (_gradient.empty())
     {
         cout << Indent(2) << "Calculate the initial approximation of the gradient\n";
 
-        Eigen::VectorXd solution = _solver.solve(rhs);
-
-        _solution.resize(_mesh->tets.size());
-        for (int i = 0; i < _mesh->tets.size(); i++)
-            _solution[i] = solution(i);
-        
+        // Solve without correction
+        _solution = EigenVectorToStdVector(_solver.solve(rhs));
         _gradient = move(_Gradient());
     }
 
-    // Cross-diffusion
     for (int i = 0; i < _mesh->tets.size(); i++)
     {
-        if (!_solutionIsUnique && i == 0)
-            continue;       
-
-        for (int j = 0; j < 4; j++)
-        {
-            Tet* tet = _mesh->tets[i];
-            Face* face = tet->faces[j];
-            Point d = face->centroid - tet->centroid;
-
-            double crossDiff;
-            
-            if (_faceBC[face->index].type == PoissonBCType::NonBoundary)
-            {
-                Tet* adjTet = tet->adjTets[j];
-                Point adjD = face->centroid - adjTet->centroid;
-
-                Point e = adjTet->centroid - tet->centroid;
-                e = e / e.Abs();
-
-                double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
-                double adjG = d.Abs() / (adjD.Abs() + d.Abs());
-                Point grad = _gradient[i];
-                Point adjGrad = _gradient[adjTet->index];
-
-                crossDiff = face->area * (grad * g + adjGrad * adjG).
-                    DotProduct(face->normal - e / e.DotProduct(face->normal));
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Periodic)
-            {
-                Tet* adjTet = tet->adjTets[j];
-                Point adjD = face->centroid - adjTet->centroid;
-
-                Point e = adjTet->centroid - tet->centroid;
-
-                int k = 0;
-                while (adjTet->adjTets[k] != tet)
-                    k++;
-
-                e = e + face->centroid - adjTet->faces[k]->centroid;
-                e = e / e.Abs();
-
-                double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
-                double adjG = d.Abs() / (adjD.Abs() + d.Abs());
-                Point grad = _gradient[i];
-                Point adjGrad = _gradient[adjTet->index];
-
-                crossDiff = face->area * (grad * g + adjGrad * adjG).
-                    DotProduct(face->normal - e / e.DotProduct(face->normal));
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
-            {
-                Point e = face->centroid - tet->centroid;
-                e = e / e.Abs();
-
-                crossDiff = face->area * Point(_gradient[i]).DotProduct(face->normal -
-                    e / e.DotProduct(face->normal));
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Neumann)
-            {
-                crossDiff = 0;
-            }
-
-            rhs(i) -= crossDiff;
-        }
+        // Add the cross-diffusion
+        _CorrectRHS(rhs, i);
     }
 
-    Eigen::VectorXd solution = _solver.solve(rhs);
+    // Solve with correction
+    _solution = EigenVectorToStdVector(_solver.solve(rhs));
+    _gradient = move(_Gradient());
+}
+
+void PoissonSolver::_MakeNeutral(std::vector<double>& rho) const
+{
+    double sum = 0;
+    double vol = 0;
 
     for (int i = 0; i < _mesh->tets.size(); i++)
-        _solution[i] = solution(i);
+    {
+        sum += rho[i] * _mesh->tets[i]->volume;
+        vol += _mesh->tets[i]->volume;
+    }
 
-    _gradient = move(_Gradient());
+    for (int i = 0; i < _mesh->tets.size(); i++)
+        rho[i] -= sum / vol;
+}
+
+void PoissonSolver::_FillLineRHS(Eigen::VectorXd& rhs, int i) const
+{
+    if (!_solutionIsUnique && i == 0)
+    {
+        // If there are infinitely many solutions, choose the one with zero in the first
+        // tetrahedron
+        rhs(0) = 0;
+        return;
+    }
+
+    Tet* tet = _mesh->tets[i];
+    for (int j = 0; j < 4; j++)
+    {
+        Face* face = tet->faces[j];
+
+        if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
+        {
+            Point d = face->centroid - tet->centroid;
+            rhs(i) -= face->area / (d.DotProduct(face->normal)) * _faceBC[face->index].value;
+            continue;
+        }
+
+        if (_faceBC[face->index].type == PoissonBCType::Neumann)
+        {
+            rhs(i) -= _faceBC[face->index].normalGrad * face->area;
+            continue;
+        }
+    }
+}
+
+Vector3d PoissonSolver::_WeightedGradient(Tet* tet, int f) const
+{
+    Face* face = tet->faces[f];
+    PoissonBCType bcType = _faceBC[face->index].type;
+
+    Point d = face->centroid - tet->centroid;
+
+    if (bcType == PoissonBCType::NonBoundary || bcType == PoissonBCType::Periodic)
+    {
+        Tet* adjTet = tet->adjTets[f];
+        Point adjD = face->centroid - adjTet->centroid;
+
+        double g = adjD.Abs() / (adjD.Abs() + d.Abs()); 
+        double adjG = d.Abs() / (adjD.Abs() + d.Abs());
+
+        Vector3d grad = _gradient[tet->index];
+        Vector3d adjGrad = _gradient[adjTet->index];
+
+        Vector3d weighted;
+        for (int i = 0; i < 3; i++)
+            weighted[i] = grad[i] * g + adjGrad[i] * adjG;
+        return weighted;
+    }
+
+    if (bcType == PoissonBCType::Dirichlet)
+    {
+        return _gradient[tet->index];
+    }
+}
+
+void PoissonSolver::_CorrectRHS(Eigen::VectorXd& rhs, int i) const
+{
+    if (!_solutionIsUnique && i == 0)
+        return;
+
+    for (int j = 0; j < 4; j++)
+    {
+        Tet* tet = _mesh->tets[i];
+
+        Face* face = tet->faces[j];
+        PoissonBCType bcType = _faceBC[face->index].type;
+
+        Point d = face->centroid - tet->centroid;
+
+        double crossDiffusion = 0;
+        if (bcType == PoissonBCType::NonBoundary)
+        {
+            Tet* adjTet = tet->adjTets[j];
+            Point e = adjTet->centroid - tet->centroid;
+            e = e / e.Abs();
+
+            Point weightedGrad = _WeightedGradient(tet, j);
+            crossDiffusion = face->area * weightedGrad.DotProduct(face->normal -
+                e / e.DotProduct(face->normal));
+        }
+        else if (bcType == PoissonBCType::Periodic)
+        {
+            Tet* adjTet = tet->adjTets[j];
+            Point e = adjTet->centroid - tet->centroid;
+
+            int k = 0;
+            while (adjTet->adjTets[k] != tet)
+                k++;
+
+            e = e + face->centroid - adjTet->faces[k]->centroid;
+            e = e / e.Abs();
+
+            Point weightedGrad = _WeightedGradient(tet, j);
+            crossDiffusion = face->area * weightedGrad.DotProduct(face->normal -
+                e / e.DotProduct(face->normal));
+        }
+        else if (bcType == PoissonBCType::Dirichlet)
+        {
+            Point e = face->centroid - tet->centroid;
+            e = e / e.Abs();
+
+            Point weightedGrad = _WeightedGradient(tet, j);
+            crossDiffusion = face->area * weightedGrad.DotProduct(face->normal -
+                e / e.DotProduct(face->normal));
+        }
+
+        rhs(i) -= crossDiffusion;
+    }
 }
 
 // Least-Square Gradient
@@ -414,5 +443,14 @@ vector<Vector3d> PoissonSolver::ElectricField() const
     }
 
     return field;
+}
+
+vector<double> EigenVectorToStdVector(const Eigen::VectorXd& eigenVector)
+{
+    int nElements = eigenVector.size();
+    vector<double> vector(nElements);
+    for (int i = 0; i < nElements; i++)
+        vector[i] = eigenVector(i);
+    return vector;
 }
 }

@@ -6,8 +6,9 @@
 using namespace VlasovTucker;
 using namespace std;
 
-int main()
+int main(int argc, char *argv[])
 {
-    Mesh mesh("../data/meshes/test_mesh_periodic.msh");
+    Mesh mesh(argv[1]);
+    mesh.Reconstruct();
     WriteMeshVTK("mesh", mesh);
 }

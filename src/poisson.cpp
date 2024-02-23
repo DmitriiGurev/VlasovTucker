@@ -63,70 +63,73 @@ void PoissonSolver::Initialize()
 {
     int nEquations = _mesh->tets.size();
 
-    // Assemble the system using Triplets (line, row, value)
-    typedef Eigen::Triplet<double> Triplet;
+    // Assemble the system
     vector<Triplet> coeffs;
-
     for (int i = 0; i < _mesh->tets.size(); i++)
-    {
-        if (!_solutionIsUnique && i == 0)
-        {
-            coeffs.push_back(Triplet(0, 0, 1));
-            continue;
-        }
-
-        // Over-relaxed correction
-        for (int j = 0; j < 4; j++)
-        {
-            Tet* tet = _mesh->tets[i];
-            Face* face = tet->faces[j];
-
-            if (_faceBC[face->index].type == PoissonBCType::NonBoundary)
-            {
-                Tet* adjTet = tet->adjTets[j];
-                Point d = adjTet->centroid - tet->centroid;
-
-                coeffs.push_back(Triplet(i, adjTet->index, 
-                    face->area / (d.DotProduct(face->normal))));
-
-                coeffs.push_back(Triplet(i, i,
-                    -face->area / (d.DotProduct(face->normal))));
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Periodic)
-            {
-                Tet* adjTet = tet->adjTets[j];
-                Point d = (adjTet->centroid - tet->centroid);
-
-                int k = 0;
-                while (adjTet->adjTets[k] != tet)
-                    k++;
-
-                d = d + face->centroid - adjTet->faces[k]->centroid;
-
-                coeffs.push_back(Triplet(i, adjTet->index, 
-                    face->area / (d.DotProduct(face->normal))));
-                    
-                coeffs.push_back(Triplet(i, i,
-                    -face->area / (d.DotProduct(face->normal))));
-            }
-            else if (_faceBC[face->index].type == PoissonBCType::Dirichlet)
-            {
-                Point d = face->centroid - tet->centroid;
-                
-                coeffs.push_back(Triplet(i, i,
-                    -face->area / (d.DotProduct(face->normal))));
-            }
-        }
-    }
+        _FillLine(coeffs, i);
 
     _system = Eigen::SparseMatrix<double>(nEquations, nEquations);
 	_system.setFromTriplets(coeffs.begin(), coeffs.end());
 	_system.makeCompressed();
 
-	// _solver.analyzePattern(_system);
-	// _solver.factorize(_system);
+	_solver.analyzePattern(_system);
+	_solver.factorize(_system);
 
     _solver.compute(_system);
+}
+
+void PoissonSolver::_FillLine(vector<Triplet>& coeffs, int i)
+{
+    if (!_solutionIsUnique && i == 0)
+    {
+        // If there are infinitely many solutions, choose the one with zero in the first
+        // tetrahedron
+        coeffs.push_back(Triplet(0, 0, 1));
+        return;
+    }
+
+    // Over-relaxed correction
+    for (int j = 0; j < 4; j++)
+    {
+        Tet* tet = _mesh->tets[i];
+        Face* face = tet->faces[j];
+        PoissonBCType bcType = _faceBC[face->index].type;
+
+        if (bcType == PoissonBCType::NonBoundary)
+        {
+            Tet* adjTet = tet->adjTets[j];
+            Point d = adjTet->centroid - tet->centroid;
+
+            coeffs.push_back(Triplet(i, adjTet->index, face->area / (d.DotProduct(face->normal))));
+            coeffs.push_back(Triplet(i, i, -face->area / (d.DotProduct(face->normal))));
+            continue;
+        }
+
+        if (bcType == PoissonBCType::Periodic)
+        {
+            Tet* adjTet = tet->adjTets[j];
+            Point d = (adjTet->centroid - tet->centroid);
+
+            // Find the periodic counterpart of the common face
+            int k = 0;
+            while (adjTet->adjTets[k] != tet)
+                k++;
+
+            d = d + face->centroid - adjTet->faces[k]->centroid;
+
+            coeffs.push_back(Triplet(i, adjTet->index, face->area / (d.DotProduct(face->normal))));
+            coeffs.push_back(Triplet(i, i, -face->area / (d.DotProduct(face->normal))));
+            continue;
+        }
+
+        if (bcType == PoissonBCType::Dirichlet)
+        {
+            Point d = face->centroid - tet->centroid;
+            
+            coeffs.push_back(Triplet(i, i, -face->area / (d.DotProduct(face->normal))));
+            continue;
+        }
+    }
 }
 
 void PoissonSolver::Solve(vector<double> rho)
@@ -187,7 +190,7 @@ void PoissonSolver::Solve(vector<double> rho)
         for (int i = 0; i < _mesh->tets.size(); i++)
             _solution[i] = solution(i);
         
-        _gradient = move(Gradient());
+        _gradient = move(_Gradient());
     }
 
     // Cross-diffusion
@@ -264,12 +267,12 @@ void PoissonSolver::Solve(vector<double> rho)
     for (int i = 0; i < _mesh->tets.size(); i++)
         _solution[i] = solution(i);
 
-    _gradient = move(Gradient());
+    _gradient = move(_Gradient());
 }
 
 // Least-Square Gradient
 // TODO: Rewrite to make it easier to read
-vector<Vector3d> PoissonSolver::Gradient()
+vector<Vector3d> PoissonSolver::_Gradient()
 {
     assert(!_solution.empty());
     vector<Vector3d> gradient(_mesh->tets.size());

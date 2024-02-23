@@ -22,6 +22,9 @@ struct PoissonBC
     double normalGrad = 0;
 };
 
+// (line, row, value)
+typedef Eigen::Triplet<double> Triplet;
+
 class PoissonSolver
 {
 public:
@@ -40,7 +43,9 @@ public:
     std::vector<Vector3d> ElectricField() const;
 
 private:
-    std::vector<Vector3d> Gradient();
+    std::vector<Vector3d> _Gradient();
+
+    void _FillLine(vector<Triplet>& coeffs, int i);
 
 private:
     const Mesh* _mesh;

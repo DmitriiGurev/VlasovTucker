@@ -41,7 +41,9 @@ public:
     std::vector<Vector3d> ElectricField() const;
 
 private:
-    std::vector<Vector3d> _Gradient();
+    // Least-squares gradient
+    Vector3d _TetLSG(Tet* tet) const;
+    std::vector<Vector3d> _Gradient() const;
     Vector3d _WeightedGradient(Tet* tet, int f) const;
 
     void _FillLineCoeffs(std::vector<Triplet>& coeffs, int i) const;

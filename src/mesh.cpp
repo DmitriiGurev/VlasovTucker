@@ -68,14 +68,19 @@ void Mesh::PrintBoundaryLabels() const
     }
 }
 
-void Mesh::SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicPairs)
+void Mesh::SetPeriodicBounaries(const vector<array<int, 2>>& periodicPairs)
 {
     _periodicPairs = periodicPairs;
 }
 
-std::vector<std::array<int, 2>> Mesh::PeriodicBoundaries() const
+vector<array<int, 2>> Mesh::PeriodicBoundaries() const
 {
     return _periodicPairs;
+}
+
+const unordered_map<int, vector<Face*>>& Mesh::EntityToFaces() const
+{
+    return _entityToFaces;
 }
 
 void Mesh::Reconstruct(double scaleFactor)
@@ -184,6 +189,9 @@ void Mesh::_LabelBoundaryFaces()
                 face->type = FaceType::Boundary;
                 face->bcTypes = _entityToPhysGroups[entityBlock.entity_tag];
                 face->entity = entityBlock.entity_tag;
+
+                // Lookup table
+                _entityToFaces[face->entity].push_back(face);
             }
         }
     }

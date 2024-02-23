@@ -55,13 +55,8 @@ void PoissonSolver::SetBC(int boundaryInd, const PoissonBC& bc)
     if (bc.type == PoissonBCType::Dirichlet)
         _solutionIsUnique = true;
 
-    // TODO: Use a map from entities to faces
-    for (int i = 0; i < _mesh->faces.size(); i++)
-    {
-        Face* face = _mesh->faces[i];
-        if (face->entity == boundaryInd)
-            _faceBC[i] = bc;
-    }
+    for (auto face : _mesh->EntityToFaces().at(boundaryInd))
+        _faceBC[face->index] = bc;
 }
 
 void PoissonSolver::Initialize()

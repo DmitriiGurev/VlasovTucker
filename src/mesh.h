@@ -23,6 +23,8 @@ public:
     void SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicPairs);
     std::vector<std::array<int, 2>> PeriodicBoundaries() const;
 
+    const std::unordered_map<int, std::vector<Face*>>& EntityToFaces() const;
+
     ~Mesh();
 
 private:
@@ -39,10 +41,12 @@ public:
 
 private:
     mshio::MshSpec _mshSpec;
-    
-    std::unordered_map<int, std::vector<std::string>> _entityToPhysGroups;
-    std::unordered_map<Triple, Face*, HashTriple> _pointsToFaces;
 
     std::vector<std::array<int, 2>> _periodicPairs;
+    
+    // Lookup tables
+    std::unordered_map<int, std::vector<std::string>> _entityToPhysGroups;
+    std::unordered_map<int, std::vector<Face*>> _entityToFaces;
+    std::unordered_map<Triple, Face*, HashTriple> _pointsToFaces;
 };
 }

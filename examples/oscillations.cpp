@@ -9,14 +9,12 @@ using namespace std;
 // Tensor format
 using TensorType = Full;
 
-// TODO: Update
-
-int main(int argc, char *argv[])
+int main()
 {
     Timer timer;
     timer.StartSection();
     
-    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
+    string meshFileName = "../data/meshes/rectangle_fine.msh";
     Mesh mesh(meshFileName);
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{1, 2}, {3, 4}, {5, 6}});
@@ -35,7 +33,7 @@ int main(int argc, char *argv[])
     plasmaParams.charge = 10;
 
     MaxwellPDF paramsPDF;
-    auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p.coords[0] * (2 * pi)); };
+    auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p[0] * (2 * pi)); };
     paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
     paramsPDF.temperature = 0;
     paramsPDF.mostProbableV = {0, 0, 0};

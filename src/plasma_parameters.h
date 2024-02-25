@@ -11,19 +11,13 @@
 
 namespace VlasovTucker
 {
-enum class ParticleType
-{
-    Electron,
-    Ion,
-    Neutral,
-    Custom
-};
+enum class ParticleType { Electron, Ion, Neutral, Custom };
 
 struct MaxwellPDF
 {
     std::vector<double> physDensity;
     double temperature;
-    std::array<double, 3> mostProbableV;
+    Vector3d mostProbableV;
 };
 
 template <typename TensorType>
@@ -35,7 +29,7 @@ public:
     void SetMaxwellPDF(const MaxwellPDF& paramsPDF);
 
     std::vector<double> Density() const;
-    std::vector<std::array<double, 3>> Velocity() const;
+    std::vector<Vector3d> Velocity() const;
 
     void SetCompressionError(double error);
     double CompressionError() const;

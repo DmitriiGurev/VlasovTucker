@@ -9,8 +9,6 @@
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
 
-using namespace std;
-
 namespace VlasovTucker
 {
 enum class PoissonBCType { NonBoundary, Neumann, Dirichlet, Periodic };
@@ -21,6 +19,9 @@ struct PoissonBC
     double value = 0;
     double normalGrad = 0;
 };
+
+// (line, row, value)
+typedef Eigen::Triplet<double> Triplet;
 
 class PoissonSolver
 {
@@ -37,11 +38,19 @@ public:
     void Solve(std::vector<double> rho);
 
     const std::vector<double>& Potential() const;
-    // TODO: Change to Point
-    std::vector<std::array<double, 3>> ElectricField() const;
+    std::vector<Vector3d> ElectricField() const;
 
 private:
-    std::vector<Point> Gradient();
+    // Least-squares gradient
+    Vector3d _TetLSG(Tet* tet) const;
+    std::vector<Vector3d> _Gradient() const;
+    Vector3d _WeightedGradient(Tet* tet, int f) const;
+
+    void _FillLineCoeffs(std::vector<Triplet>& coeffs, int i) const;
+    void _FillLineRHS(Eigen::VectorXd& rhs, int i) const;
+    void _CorrectRHS(Eigen::VectorXd& rhs, int i) const;
+
+    void _MakeNeutral(std::vector<double>& rho) const;
 
 private:
     const Mesh* _mesh;
@@ -57,6 +66,9 @@ private:
         > _solver;
 
     std::vector<double> _solution;
-    std::vector<Point> _gradient;
+    std::vector<Vector3d> _gradient;
 };
+
+std::vector<double> EigenVectorToStdVector(const Eigen::VectorXd& eigenVector);
+
 }

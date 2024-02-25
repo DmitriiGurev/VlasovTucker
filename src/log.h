@@ -7,15 +7,8 @@
 
 namespace VlasovTucker
 {
-enum class LogLevel
-{
-    None,
-    Console,
-    TextFile,
-    AllText
-};
+enum class LogLevel { None, Console, TextFile, AllText};
 
-// TODO: Remove definitions from the class 
 class Log
 {
 public:
@@ -81,7 +74,7 @@ private:
 };
 
 static std::string Indent(int level) {
-    int basicIndent = 4;
-    return std::string(basicIndent * level, ' ');
+    int tabIndent = 4;
+    return std::string(tabIndent * level, ' ');
 }
 }

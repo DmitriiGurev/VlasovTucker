@@ -97,6 +97,12 @@ Tucker& Tucker::Compress(double precision, int maxRank)
     return *this;
 }
 
+Tensor3d Tucker::Reconstructed() const
+{
+    MatrixXd unfolding = _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(); 
+    return Folding(_n[0], _n[1], _n[2], unfolding, 0);
+}
+
 int Tucker::Size() const
 {
     return _core.size() + _u[0].size() + _u[1].size() + _u[2].size(); 
@@ -120,30 +126,6 @@ array<MatrixXd, 3> Tucker::U() const
 Tensor3d Tucker::Core() const
 {
     return _core;
-}
-
-double Tucker::operator()(int i0, int i1, int i2) const
-{
-    double el = 0;
-
-    for (int j0 = 0; j0 < _r[0]; j0++)
-    {
-        for (int j1 = 0; j1 < _r[1]; j1++)
-        {
-            for (int j2 = 0; j2 < _r[2]; j2++)
-            {
-                el += _core(j0, j1, j2) * _u[0](i0, j0) * _u[1](i1, j1) * _u[2](i2, j2);
-            }
-        }
-    }
-    return el;
-}
-
-Tensor3d Tucker::Reconstructed() const
-{
-    return Folding(_n[0], _n[1], _n[2],
-                   _u[0] * Unfolding(_core, 0) * kroneckerProduct(_u[1], _u[2]).transpose(),
-                   0);
 }
 
 double Tucker::Sum() const
@@ -177,6 +159,23 @@ double Tucker::Norm() const
         }
     }
     return sqrt(sumSq);
+}
+
+double Tucker::operator()(int i0, int i1, int i2) const
+{
+    double el = 0;
+
+    for (int j0 = 0; j0 < _r[0]; j0++)
+    {
+        for (int j1 = 0; j1 < _r[1]; j1++)
+        {
+            for (int j2 = 0; j2 < _r[2]; j2++)
+            {
+                el += _core(j0, j1, j2) * _u[0](i0, j0) * _u[1](i1, j1) * _u[2](i2, j2);
+            }
+        }
+    }
+    return el;
 }
 
 std::ostream& operator<<(std::ostream& out, const Tucker& tucker)

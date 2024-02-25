@@ -50,7 +50,9 @@ void Mesh::PrintBoundaryLabels() const
     for (auto pair : _entityToPhysGroups)
     {
         int number = pair.first;
-        int nLabels = pair.second.size();
+        auto& labels = pair.second;
+
+        int nLabels = labels.size();
 
         cout << number << ": {";
         if (nLabels == 0)
@@ -60,20 +62,25 @@ void Mesh::PrintBoundaryLabels() const
         else
         {
             for (int i = 0; i < nLabels - 1; i++) 
-                cout << pair.second[i] << ", ";
-            cout << pair.second[nLabels - 1] << "}\n";
+                cout << labels[i] << ", ";
+            cout << labels[nLabels - 1] << "}\n";
         }
     }
 }
 
-void Mesh::SetPeriodicBounaries(const std::vector<std::array<int, 2>>& periodicPairs)
+void Mesh::SetPeriodicBounaries(const vector<array<int, 2>>& periodicPairs)
 {
     _periodicPairs = periodicPairs;
 }
 
-std::vector<std::array<int, 2>> Mesh::PeriodicBoundaries() const
+vector<array<int, 2>> Mesh::PeriodicBoundaries() const
 {
     return _periodicPairs;
+}
+
+const unordered_map<int, vector<Face*>>& Mesh::EntityToFaces() const
+{
+    return _entityToFaces;
 }
 
 void Mesh::Reconstruct(double scaleFactor)
@@ -182,6 +189,9 @@ void Mesh::_LabelBoundaryFaces()
                 face->type = FaceType::Boundary;
                 face->bcTypes = _entityToPhysGroups[entityBlock.entity_tag];
                 face->entity = entityBlock.entity_tag;
+
+                // Lookup table
+                _entityToFaces[face->entity].push_back(face);
             }
         }
     }
@@ -212,17 +222,20 @@ void SortFacesInPlane(vector<Face*>& plane)
 
     sort(plane.begin(), plane.end(), [&](const auto& lhs, const auto& rhs)
     {
-        if (!ApproxEqual(lhs->centroid.coords[0], rhs->centroid.coords[0]))
+        Point lC = lhs->centroid;
+        Point rC = rhs->centroid;
+
+        if (!ApproxEqual(lC[0], rC[0]))
         {
-            return lhs->centroid.coords[0] < rhs->centroid.coords[0];
+            return lC[0] < rC[0];
         }
-        else if (!ApproxEqual(lhs->centroid.coords[1], rhs->centroid.coords[1]))
+        else if (!ApproxEqual(lC[1], rC[1]))
         {
-            return lhs->centroid.coords[1] < rhs->centroid.coords[1];
+            return lC[1] < rC[1];
         }
-        else if (!ApproxEqual(lhs->centroid.coords[2], rhs->centroid.coords[2]))
+        else if (!ApproxEqual(lC[2], rC[2]))
         {
-            return lhs->centroid.coords[2] < rhs->centroid.coords[2];
+            return lC[2] < rC[2];
         }
         else
         {
@@ -252,8 +265,11 @@ void Mesh::_ConfigurePeriodicity()
             pairOfPlanes[i] = plane;
         }
 
-        // TODO: Throw a runtime error with an explanation
-        assert(pairOfPlanes[0].size() == pairOfPlanes[1].size());
+        if (pairOfPlanes[0].size() != pairOfPlanes[1].size())
+        {
+            throw runtime_error("Mismatch between the sizes of the periodic planes " +
+                to_string(pairInds[0]) + " and  " + to_string(pairInds[1]));
+        }
 
         pairsOfPeriodicPlanes.push_back(pairOfPlanes);
     }

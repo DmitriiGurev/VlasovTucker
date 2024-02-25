@@ -6,8 +6,18 @@ using namespace std;
 
 namespace VlasovTucker
 {
-Point::Point(array<double, 3> coords) :
+Point::Point(Vector3d coords) :
     coords(coords) {}
+
+double Point::operator[](int i) const
+{
+    return coords[i];
+}
+
+double& Point::operator[](int i)
+{
+    return coords[i];
+}
 
 Point Point::operator+(const Point& p) const
 {
@@ -23,6 +33,11 @@ Point Point::operator-(const Point& p) const
                   coords[2] - p.coords[2]});
 }
 
+Point operator-(const Point& p)
+{
+    return (-1) * p;
+}
+
 Point Point::operator/(double d) const
 {
     return Point({coords[0] / d,
@@ -35,6 +50,11 @@ Point Point::operator*(double d) const
     return Point({coords[0] * d,
                   coords[1] * d,
                   coords[2] * d});
+}
+
+Point operator*(double d, const Point& p)
+{
+    return p * d;
 }
 
 bool Point::operator==(const Point& p) const
@@ -67,7 +87,7 @@ Point Point::CrossProduct(const Point& p) const
 
 ostream& operator<<(ostream& os, const Point& p)
 {
-    os << "Point: {" << p.coords[0] << ", " << p.coords[1]  << ", " << p.coords[2] << "}";
+    os << "Point: {" << p[0] << ", " << p[1]  << ", " << p[2] << "}";
     return os;
 }
 

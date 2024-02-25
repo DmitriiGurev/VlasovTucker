@@ -25,7 +25,7 @@ int main()
     cout << "Characteristic time: " << plasmaT << " [s]\n";
 
     // 1. Load the mesh
-    string meshFileName = "../data/meshes/rectangle_very_fine.msh";
+    string meshFileName = "../data/meshes/rectangle_fine.msh";
     Mesh mesh(meshFileName);
 
     mesh.PrintBoundaryLabels();
@@ -66,11 +66,14 @@ int main()
     // 4. Initialize the solver
     Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
 
+    // Let the system be initially electroneutral
+    solver.backgroundChargeDensity = elCharge * plasmaParams.Density()[0];
+
     // Set boundary conditions
     // Charged plane (Neumann BC)
     FieldBC fieldBC1;
     fieldBC1.type = FieldBCType::ChargedPlane;
-    fieldBC1.chargeDenity = 0;
+    fieldBC1.chargeDensity = 0;
     solver.SetFieldBC(1, fieldBC1);
 
     // Zero potential (Dirichlet BC)
@@ -81,7 +84,8 @@ int main()
 
     // Charging wall (Absorbing BC) 
     ParticleBC<TensorType> particleBC1;
-    particleBC1.type = ParticleBCType::AbsorbingWall;
+    particleBC1.type = ParticleBCType::Absorbing;
+    particleBC1.collectCharge = true;
     solver.SetParticleBC(1, particleBC1);
 
     // Free wall (Free BC)

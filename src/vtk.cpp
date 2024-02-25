@@ -47,7 +47,7 @@ void WriteCellScalarDataVTK(string fileName,
 
 void WriteCellVectorDataVTK(string fileName,
                             const Mesh& mesh,
-                            const vector<array<double, 3>>& data)
+                            const vector<Vector3d>& data)
 {
     ofstream out;
     out.open(fileName + ".vtk");

@@ -18,7 +18,7 @@ void WriteCellScalarDataVTK(std::string fileName,
 
 void WriteCellVectorDataVTK(std::string fileName,
                             const Mesh& mesh,
-                            const std::vector<std::array<double, 3>>& data = {});
+                            const std::vector<Vector3d>& data = {});
 
 void WriteMeshVTK(std::string fileName,
                   const Mesh& mesh);

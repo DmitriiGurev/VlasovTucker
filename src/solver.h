@@ -19,16 +19,17 @@ struct FieldBC
 {
     FieldBCType type;
     double potential;
-    double chargeDenity;
+    double chargeDensity;
 };
 
-enum class ParticleBCType { NonBoundary, Periodic, ConstantSource, AbsorbingWall, Free };
+enum class ParticleBCType { NonBoundary, Periodic, Source, Absorbing, Free };
 
 template <typename TensorType>
 struct ParticleBC
 {
     ParticleBCType type = ParticleBCType::NonBoundary;
     TensorType sourcePDF;
+    bool collectCharge = false;
 };
 
 template <typename TensorType>
@@ -46,10 +47,21 @@ public:
 
 private:
     void _PrecomputeNormalTensors();
+
+    void _InitializeWallCharge();
+
+    TensorType _Flux(const Tet* tet, int f, ParticleBCType bcType) const;
     TensorType _PDFDerivative(const Tet* tet, int ind) const;
 
+    void _WriteResults(int iteration);
+    
 public:
     int writeStep = INT_MAX;
+
+    // Constant background charge
+    double backgroundChargeDensity = 0;
+    // External electric field
+    Vector3d externalField = {0, 0, 0};
 
 private:
     const Mesh* _mesh;

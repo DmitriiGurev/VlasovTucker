@@ -10,4 +10,11 @@ const double elCharge     = 1.6e-19;   // [C]
 const double epsilon0     = 8.85e-12;  // [F m^-1]
 const double electronvolt = 11604.518; // [K]
 const double boltzConst   = 1.38e-23;  // [m^2 kg s^-2 K^-1]
+
+// const double atomicMass   = 1;
+// const double elMass       = 1;
+// const double elCharge     = 1;
+// const double epsilon0     = 1;
+// const double electronvolt = 1;
+// const double boltzConst   = 1;
 }

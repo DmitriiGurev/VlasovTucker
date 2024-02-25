@@ -332,7 +332,7 @@ TensorType Solver<TensorType>::_Flux(const Tet* tet, int f, ParticleBCType bcTyp
         flux = 0.5 * (_vNormal[tetInd][f] * _plParams->pdf[tetInd] +
             _vNormalAbs[tetInd][f] * _plParams->pdf[tetInd]);
     }
-    else if (bcType == ParticleBCType::ConstantSource)
+    else if (bcType == ParticleBCType::Source)
     {
         Tensor3d zero(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
         zero.setZero();

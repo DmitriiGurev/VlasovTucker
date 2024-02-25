@@ -22,7 +22,7 @@ struct FieldBC
     double chargeDensity;
 };
 
-enum class ParticleBCType { NonBoundary, Periodic, Source, Absorbing, Reflecting, Free };
+enum class ParticleBCType { NonBoundary, Periodic, Source, Absorbing, Free };
 
 template <typename TensorType>
 struct ParticleBC

@@ -322,12 +322,6 @@ Vector3d PoissonSolver::_TetLSG(Tet* tet) const
     array<double, 4> adjVal;
     array<Point, 4> dist;
     
-    // Neumann BCs
-    int nNeumannFaces = 0;
-    vector<int> neumannInds;
-    vector<double> normGrads;
-    vector<Point> faceNormals;
-
     for (int i = 0; i < 4; i++)
     {
         Tet* adjTet = tet->adjTets[i];
@@ -351,10 +345,12 @@ Vector3d PoissonSolver::_TetLSG(Tet* tet) const
 
         if (bcType == PoissonBCType::Neumann)
         {
-            nNeumannFaces++;
-            neumannInds.push_back(i);
-            normGrads.push_back(_faceBC[face->index].normalGrad);
-            faceNormals.push_back(face->normal);
+            Point d = face->centroid - tet->centroid;
+            Point x = face->normal * face->normal.DotProduct(d);
+            
+            dist[i] = x;
+            adjVal[i] = val + x.Abs() * _faceBC[face->index].normalGrad;
+
             continue;
         }
 
@@ -372,53 +368,31 @@ Vector3d PoissonSolver::_TetLSG(Tet* tet) const
         }
     }
 
-    if (nNeumannFaces > 3)
-        throw runtime_error("Four Neumann faces. The gradient is overdetermined.");
-
-    auto IsNeumann = [neumannInds](int j)
-    {
-        return find(neumannInds.begin(), neumannInds.end(), j ) != neumannInds.end();
-    };
-
     array<double, 4> weights;
     for (int i = 0; i < 4; i++)
         weights[i] = 1 / dist[i].Abs();
 
     Eigen::Matrix3d m;
-    for (int k = nNeumannFaces; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
         for (int i = 0; i < 3; i++)
         {
             m(k, i) = 0;
             for (int j = 0; j < 4; j++)
-            {
-                // Skip Neumann faces
-                if (!IsNeumann(j))
-                    m(k, i) += 2 * weights[j] * dist[j][k] * dist[j][i];
-            }
+                m(k, i) += 2 * weights[j] * dist[j][k] * dist[j][i];
         }
     }
 
-    for (int k = 0; k < nNeumannFaces; k++)
-    {
-        for (int i = 0; i < 3; i++)
-            m(k, i) = faceNormals[k][i];
-    }
+    if (m.determinant() == 0)
+        throw runtime_error("Degenerate matrix in LSG.");
 
     Eigen::Vector3d rhs;
-    for (int k = nNeumannFaces; k < 3; k++)
+    for (int k = 0; k < 3; k++)
     {
         rhs(k) = 0;
         for (int j = 0; j < 4; j++)
-        {
-            // Skip Neumann faces
-            if (!IsNeumann(j))
-                rhs(k) -= 2 * weights[j] * dist[j][k] * (val - adjVal[j]);
-        }
+            rhs(k) -= 2 * weights[j] * dist[j][k] * (val - adjVal[j]);
     }
-
-    for (int k = 0; k < nNeumannFaces; k++)
-        rhs(k) = normGrads[k];
 
     Eigen::Vector3d grad = m.fullPivLu().solve(rhs);
     return {grad(0), grad(1), grad(2)};

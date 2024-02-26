@@ -11,6 +11,55 @@ using namespace std;
 
 namespace VlasovTucker
 {
+SparseSolver::SparseSolver(SparseSolverType type) :
+    _type(type)
+{}
+
+void SparseSolver::SetType(SparseSolverType type)
+{
+    _type = type;
+}
+
+void SparseSolver::Compute(const Eigen::SparseMatrix<double>& system)
+{
+    if (_type == SparseSolverType::SparseLU)
+    {
+        _solverLU.analyzePattern(system);
+        _solverLU.factorize(system);
+        _solverLU.compute(system);
+    }
+    else if (_type == SparseSolverType::ConjugateGradient)
+    {
+        _solverCG.analyzePattern(system);
+        _solverCG.factorize(system);
+        _solverCG.compute(system);
+    }
+}
+
+Eigen::VectorXd SparseSolver::Solve(Eigen::VectorXd rhs) const
+{
+    if (_type == SparseSolverType::SparseLU)
+    {
+        return _solverLU.solve(rhs);
+    }
+    else if (_type == SparseSolverType::ConjugateGradient)
+    {
+        if (guess.size() == rhs.size())
+            return _solverCG.solveWithGuess(rhs, guess);
+
+        return _solverCG.solve(rhs);
+    }
+    return Eigen::VectorXd();
+}
+
+SparseSolver& SparseSolver::operator=(SparseSolver&& other)
+{
+    // Remark: The sparse solvers cannot be moved. Compute() should be called again
+    _type = move(other._type);
+    guess = move(other.guess);
+    return *this;
+}
+
 PoissonSolver::PoissonSolver() :
     _mesh(nullptr)
 {}
@@ -33,23 +82,6 @@ PoissonSolver::PoissonSolver(const Mesh* mesh) :
     }
 }
 
-// Move assignment
-PoissonSolver& PoissonSolver::operator=(PoissonSolver&& other)
-{
-    _mesh             = move(other._mesh);
-    _faceBC           = move(other._faceBC);
-    _solutionIsUnique = move(other._solutionIsUnique);
-    _system           = move(other._system);
-    _solution         = move(other._solution);
-    _gradient         = move(other._gradient);
-
-    // Cannot be moved
-    if (_system.size() != 0)
-        _solver.compute(_system);
-
-    return *this;
-}
-
 void PoissonSolver::SetBC(int boundaryInd, const PoissonBC& bc)
 {
     if (bc.type == PoissonBCType::Dirichlet)
@@ -57,6 +89,19 @@ void PoissonSolver::SetBC(int boundaryInd, const PoissonBC& bc)
 
     for (auto face : _mesh->EntityToFaces().at(boundaryInd))
         _faceBC[face->index] = bc;
+}
+
+void PoissonSolver::SetSparseSolverType(SparseSolverType type)
+{
+    _solver.SetType(type);
+}
+
+void PoissonSolver::_SetGuess(const vector<double>& guess)
+{
+    Eigen::VectorXd eigenGuess(guess.size());
+    for (int i = 0; i < guess.size(); i++)
+        eigenGuess(i) = guess[i];
+    _solver.guess = eigenGuess;
 }
 
 void PoissonSolver::Initialize()
@@ -75,10 +120,7 @@ void PoissonSolver::Initialize()
 	_system.setFromTriplets(coeffs.begin(), coeffs.end());
 	_system.makeCompressed();
 
-	_solver.analyzePattern(_system);
-	_solver.factorize(_system);
-
-    _solver.compute(_system);
+    _solver.Compute(_system);
 }
 
 void PoissonSolver::_FillLineCoeffs(vector<Triplet>& coeffs, int i) const
@@ -154,7 +196,7 @@ void PoissonSolver::Solve(vector<double> rho)
         cout << Indent(2) << "Calculate the initial approximation of the gradient\n";
 
         // Solve without correction
-        _solution = EigenVectorToStdVector(_solver.solve(rhs));
+        _solution = EigenVectorToStdVector(_solver.Solve(rhs));
         _gradient = move(_Gradient());
     }
 
@@ -164,8 +206,11 @@ void PoissonSolver::Solve(vector<double> rho)
         _CorrectRHS(rhs, i);
     }
 
+    // For iterative solvers, use the current solution as a guess
+    _SetGuess(_solution);
+
     // Solve with correction
-    _solution = EigenVectorToStdVector(_solver.solve(rhs));
+    _solution = EigenVectorToStdVector(_solver.Solve(rhs));
     _gradient = move(_Gradient());
 }
 

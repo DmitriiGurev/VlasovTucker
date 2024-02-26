@@ -43,6 +43,8 @@ public:
     void SetFieldBC(int boundaryInd, const FieldBC& bc);
     void SetParticleBC(int boundaryInd, const ParticleBC<TensorType>& bc);
 
+    void SetSparseSolverType(SparseSolverType type);
+
     void Solve(double timeStep, int nIterations);
 
 private:

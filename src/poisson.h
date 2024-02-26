@@ -11,6 +11,39 @@
 
 namespace VlasovTucker
 {
+
+enum class SparseSolverType { SparseLU, ConjugateGradient };
+
+class SparseSolver
+{
+public:
+    SparseSolver(SparseSolverType type = SparseSolverType::SparseLU);
+
+    void SetType(SparseSolverType type);
+
+    void Compute(const Eigen::SparseMatrix<double>& system);
+
+    Eigen::VectorXd Solve(Eigen::VectorXd rhs) const;
+
+    SparseSolver& operator=(SparseSolver&& other);
+
+public:
+    Eigen::VectorXd guess;
+
+private:
+    SparseSolverType _type;
+
+    Eigen::SparseLU<
+        Eigen::SparseMatrix<double>,
+        Eigen::COLAMDOrdering<int>
+        > _solverLU;
+
+    Eigen::ConjugateGradient<
+        Eigen::SparseMatrix<double>,
+        Eigen::Upper
+        > _solverCG;
+};
+
 enum class PoissonBCType { NonBoundary, Neumann, Dirichlet, Periodic };
 
 struct PoissonBC
@@ -29,9 +62,9 @@ public:
     PoissonSolver();
     PoissonSolver(const Mesh* mesh);
 
-    PoissonSolver& operator=(PoissonSolver&& other);
-
     void SetBC(int boundaryInd, const PoissonBC& bc);
+
+    void SetSparseSolverType(SparseSolverType type);
 
     void Initialize();
 
@@ -52,6 +85,9 @@ private:
 
     void _MakeNeutral(std::vector<double>& rho) const;
 
+    // Initial guess for iterative methods
+    void _SetGuess(const std::vector<double>& guess);
+    
 private:
     const Mesh* _mesh;
     std::vector<PoissonBC> _faceBC;
@@ -60,10 +96,7 @@ private:
 
 	Eigen::SparseMatrix<double> _system;
 
-	Eigen::SparseLU<
-        Eigen::SparseMatrix<double>,
-        Eigen::COLAMDOrdering<int>
-        > _solver;
+    SparseSolver _solver; 
 
     std::vector<double> _solution;
     std::vector<Vector3d> _gradient;

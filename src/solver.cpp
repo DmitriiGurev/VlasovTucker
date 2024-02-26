@@ -71,6 +71,12 @@ void Solver<TensorType>::SetParticleBC(int boundaryInd, const ParticleBC<TensorT
 }
 
 template <typename TensorType>
+void Solver<TensorType>::SetSparseSolverType(SparseSolverType type)
+{
+    _poissonSolver.SetSparseSolverType(type);
+}
+
+template <typename TensorType>
 void Solver<TensorType>::Solve(double timeStep, int nIterations)
 {
     // Calculate the area of absorbing walls, if any, and set the collected charge to zero

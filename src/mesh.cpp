@@ -83,6 +83,14 @@ const unordered_map<int, vector<Face*>>& Mesh::EntityToFaces() const
     return _entityToFaces;
 }
 
+double Mesh::AverageCellSize() const
+{
+    double averageSize = 0;
+    for (auto tet : tets)
+        averageSize += pow(tet->volume * 6 * sqrt(2), 1 / 3.);
+    return averageSize / (double)tets.size();
+}
+
 void Mesh::Reconstruct(double scaleFactor)
 {
     // Fill the vector of nodes

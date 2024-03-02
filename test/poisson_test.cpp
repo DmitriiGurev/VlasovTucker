@@ -9,105 +9,298 @@
 using namespace VlasovTucker;
 using namespace std;
 
-int main() 
+vector<string> cubicMeshes = {"../data/meshes/poisson_tests/box_4955_tets.msh",
+                              "../data/meshes/poisson_tests/box_10021_tets.msh",
+                              "../data/meshes/poisson_tests/box_14324_tets.msh",
+                              "../data/meshes/poisson_tests/box_21756_tets.msh",
+                              "../data/meshes/poisson_tests/box_37523_tets.msh",
+                              "../data/meshes/poisson_tests/box_171081_tets.msh",
+                              "../data/meshes/poisson_tests/box_562821_tets.msh"};
+
+vector<string> sphericalMeshes = {"../data/meshes/poisson_tests/sphere_2697_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_5955_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_19938_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_38931_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_90835_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_154054_tets.msh",
+                                  "../data/meshes/poisson_tests/sphere_300334_tets.msh"};
+
+void RunTest1()
 {
+    cout << "Start test #1\n";
+
     Timer timer;
 
-    string meshFileName = "../data/meshes/fully_periodic_coarse.msh";
-    Mesh mesh(meshFileName);
-    mesh.PrintBoundaryLabels();
-    mesh.SetPeriodicBounaries({{3, 4}, {5, 6}});
-    mesh.Reconstruct();
+    ofstream results("poisson_test_1_results.txt");
 
-    cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
-    WriteMeshVTK("mesh", mesh);
-
-    timer.PrintSectionTime("Mesh initialization");
-
-    double averageSize = 0;
-    for (auto tet : mesh.tets)
-        averageSize += pow(tet->volume * 6 * sqrt(2), 1 / 3.);
-    averageSize /= mesh.tets.size();
-    cout << "Average cell size: " << averageSize << "\n";
-
-    cout << "Initialize the solver...\n";
-
-    PoissonSolver solver(&mesh);
- 
-    // Set boundary conditions (periodic BCs are set automatically)
-    PoissonBC dirichletBC;
-    dirichletBC.type = PoissonBCType::Dirichlet;
-    dirichletBC.value = 1;
-
-    PoissonBC neumannBC;
-    neumannBC.type = PoissonBCType::Neumann;
-    // neumannBC.gradient = Point({0, 1, 0});
-    neumannBC.normalGrad = 1;
-
-    // solver.SetBC(5, dirichletBC);
-    // solver.SetBC(6, neumannBC);
-
-    solver.SetBC(1, PoissonBC({PoissonBCType::Neumann, 0, 2}));
-    solver.SetBC(2, PoissonBC({PoissonBCType::Dirichlet, 0, 0}));
-
-    solver.Initialize();
-
-    timer.PrintSectionTime("Initializing the solver");
-
-    auto rhoFunc = [](const Point& p) 
+    for (string meshFileName : cubicMeshes)
     {
-        return -1;
-        // return 2 * 4 * pi * pi * sin((p[0] + p[1]) * 2 * pi);
-    };
+        cout << "Mesh: " << meshFileName << "\n";
+        
+        Mesh mesh(meshFileName);
+        mesh.SetPeriodicBounaries({{5, 6}});
+        mesh.Reconstruct();
+        WriteMeshVTK("mesh", mesh);
+        cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
+        cout << "Average cell size: " << mesh.AverageCellSize() << "\n";
+        timer.PrintSectionTime("Mesh initialization");
 
-    vector<double> rho = ScalarField(&mesh, rhoFunc);
-    WriteCellScalarDataVTK("rho", mesh, rho);
+        PoissonSolver solver(&mesh);
+        solver.SetSparseSolverType(SparseSolverType::ConjugateGradient);
 
-    for (int r = 0; r < 3; r++)
-        solver.Solve(rho);
+        solver.SetBC(1, PoissonBC({PoissonBCType::Dirichlet, 0, 0}));
+        solver.SetBC(2, PoissonBC({PoissonBCType::Dirichlet, 0, 0}));
+        solver.SetBC(3, PoissonBC({PoissonBCType::Neumann, 0, 0}));
+        solver.SetBC(4, PoissonBC({PoissonBCType::Neumann, 0, 0}));
 
-    vector<double> phi = solver.Potential();
-    timer.PrintSectionTime("Solving the system");
+        solver.Initialize();
 
-    // double phiAvg = 0;
-    // for (int i = 0; i < mesh.tets.size(); i++)
-    //     phiAvg += phi[i];
-    // phiAvg /= mesh.tets.size();
-    // for (int i = 0; i < mesh.tets.size(); i++)
-    //     phi[i] -= phiAvg;
+        timer.PrintSectionTime("Initializing the solver");
 
-    vector<double> phiAnalytical;
-    double err = 0.0;
-    for (int i = 0; i < mesh.tets.size(); i++)
-    {
-        Point c = mesh.tets[i]->centroid;
-        double analytical = sin((c[0] + c[1]) * 2 * M_PI);
-        double actual = phi[i];
-        err += abs(analytical - actual);
+        auto rhoFunc = [](const Point& p) 
+        {
+            return -epsilon0 * cos(2 * pi * p[1]) *
+                (-pow(2 * pi * p[0], 2) + pow(2 * pi, 2) * p[0] + 2);
+        };
 
-        phiAnalytical.push_back(analytical);
+        vector<double> rho = ScalarField(&mesh, rhoFunc);
+        WriteCellScalarDataVTK("rho", mesh, rho);
+
+        int nRounds = 5;
+        for (int r = 0; r < nRounds; r++)
+            solver.Solve(rho);
+
+        timer.PrintSectionTime("Solving the system");
+
+        vector<double> phi = solver.Potential();
+        vector<Vector3d> field = solver.ElectricField();
+
+        WriteCellScalarDataVTK("phi", mesh, phi);
+        WriteCellVectorDataVTK("electric_field", mesh, field);
+
+        // Analytical solution
+        vector<double> phiA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            phiA[tet->index] = p[0] * (p[0] - 1) * cos(2 * pi * p[1]);
+        }
+        WriteCellScalarDataVTK("phi_analytical", mesh, phiA);
+
+        vector<Vector3d> fieldA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            fieldA[tet->index][0] = -(2 * p[0] - 1) * cos(2 * pi * p[1]);
+            fieldA[tet->index][1] = 2 * pi * (p[0] * p[0] - p[0]) * sin(2 * pi * p[1]);
+            fieldA[tet->index][2] = 0;
+        }
+        WriteCellVectorDataVTK("electric_field_analytical", mesh, fieldA);
+
+        // Calculate the difference
+        double phiMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+            phiMSE += pow(phi[i] - phiA[i], 2);
+        phiMSE = sqrt(phiMSE / mesh.tets.size());
+        cout << "Phi MSE = " << phiMSE << "\n";
+
+        double fieldMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+        {
+            fieldMSE += pow(field[i][0] - fieldA[i][0], 2) +
+                        pow(field[i][1] - fieldA[i][1], 2) +
+                        pow(field[i][2] - fieldA[i][2], 2);
+        }
+        fieldMSE = sqrt(fieldMSE / mesh.tets.size());
+        cout << "Field MSE = " << fieldMSE << "\n";
+
+        results << mesh.AverageCellSize() << " " << phiMSE << " " << fieldMSE << "\n" << flush;
+        cout << "\n\n";
     }
-    cout << "Phi error: " << err / mesh.tets.size() << "\n";
-    WriteCellScalarDataVTK("phi", mesh, phi);
-    WriteCellScalarDataVTK("phi_analytical", mesh, phiAnalytical);
+}
 
-    vector<Vector3d> field = solver.ElectricField();
-    vector<Vector3d> fieldAnalytical;
-    double errField = 0;
-    for (int i = 0; i < mesh.tets.size(); i++)
+void RunTest2() 
+{
+    cout << "Start test #2\n";
+
+    Timer timer;
+    
+    ofstream results("poisson_test_2_results.txt");
+
+    for (string meshFileName : cubicMeshes)
     {
-        Point c = mesh.tets[i]->centroid;
-        double cosine = cos((c[0] + c[1]) * 2 * M_PI);
-        Point analytical({1, 1, 0});
-        analytical = analytical * cosine * (2 * M_PI);
+        cout << "Mesh: " << meshFileName << "\n";
 
-        Vector3d actual = field[i];
-        errField += (analytical - actual).Abs();
+        Mesh mesh(meshFileName);
+        mesh.SetPeriodicBounaries({{1, 2}, {3, 4}, {5, 6}});
+        mesh.Reconstruct();
+        WriteMeshVTK("mesh", mesh);
+        cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
+        cout << "Average cell size: " << mesh.AverageCellSize() << "\n";
+        timer.PrintSectionTime("Mesh initialization");
 
-        fieldAnalytical.push_back(analytical.coords);
+        PoissonSolver solver(&mesh);
+        solver.SetSparseSolverType(SparseSolverType::ConjugateGradient);
+
+        solver.Initialize();
+
+        timer.PrintSectionTime("Initializing the solver");
+
+        auto rhoFunc = [](const Point& p) 
+        {
+            return epsilon0 * 4 * pi * pi * 6 * sin(2 * pi * (p[0] + p[1] + 2 * p[2]));
+        };
+
+        vector<double> rho = ScalarField(&mesh, rhoFunc);
+        WriteCellScalarDataVTK("rho", mesh, rho);
+
+        int nRounds = 5;
+        for (int r = 0; r < nRounds; r++)
+            solver.Solve(rho);
+
+        timer.PrintSectionTime("Solving the system");
+
+        vector<double> phi = solver.Potential();
+        vector<Vector3d> field = solver.ElectricField();
+
+        WriteCellScalarDataVTK("phi", mesh, phi);
+        WriteCellVectorDataVTK("electric_field", mesh, field);
+
+        // Analytical solution
+        vector<double> phiA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            phiA[tet->index] = sin(2 * pi * (p[0] + p[1] + 2 * p[2]));
+        }
+        WriteCellScalarDataVTK("phi_analytical", mesh, phiA);
+
+        vector<Vector3d> fieldA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            fieldA[tet->index][0] = -2 * pi * 1 * cos(2 * pi * (p[0] + p[1] + 2 * p[2]));
+            fieldA[tet->index][1] = -2 * pi * 1 * cos(2 * pi * (p[0] + p[1] + 2 * p[2]));
+            fieldA[tet->index][2] = -2 * pi * 2 * cos(2 * pi * (p[0] + p[1] + 2 * p[2]));
+        }
+        WriteCellVectorDataVTK("electric_field_analytical", mesh, fieldA);
+
+        // Calculate the difference
+        double phiMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+            phiMSE += pow(phi[i] - phiA[i], 2);
+        phiMSE = sqrt(phiMSE / mesh.tets.size());
+        cout << "Phi MSE = " << phiMSE << "\n";
+
+        double fieldMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+        {
+            fieldMSE += pow(field[i][0] - fieldA[i][0], 2) +
+                        pow(field[i][1] - fieldA[i][1], 2) +
+                        pow(field[i][2] - fieldA[i][2], 2);
+        }
+        fieldMSE = sqrt(fieldMSE / mesh.tets.size());
+        cout << "Field MSE = " << fieldMSE << "\n";
+
+        results << mesh.AverageCellSize() << " " << phiMSE << " " << fieldMSE << "\n" << flush;
+        cout << "\n\n";
     }
-    cout << "Field error: " << errField / mesh.tets.size() << "\n";
-    WriteCellVectorDataVTK("electric_field", mesh, field);
-    WriteCellVectorDataVTK("electric_field_analytical", mesh, fieldAnalytical);
-    timer.PrintSectionTime("Writing the results");
+}
+
+void RunTest3() 
+{
+    cout << "Start test #3\n";
+
+    Timer timer;
+    
+    ofstream results("poisson_test_3_results.txt");
+
+    for (string meshFileName : sphericalMeshes)
+    {
+        cout << "Mesh: " << meshFileName << "\n";
+
+        Mesh mesh(meshFileName);
+        mesh.Reconstruct();
+        WriteMeshVTK("mesh", mesh);
+        cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
+        cout << "Average cell size: " << mesh.AverageCellSize() << "\n";
+        timer.PrintSectionTime("Mesh initialization");
+
+        PoissonSolver solver(&mesh);
+        solver.SetSparseSolverType(SparseSolverType::ConjugateGradient);
+
+        solver.SetBC(1, PoissonBC({PoissonBCType::Dirichlet, 0, 0}));
+
+        solver.Initialize();
+
+        timer.PrintSectionTime("Initializing the solver");
+
+        auto rhoFunc = [](const Point& p) 
+        {
+            return -epsilon0 * pow(p.Abs(), 2);
+        };
+
+        vector<double> rho = ScalarField(&mesh, rhoFunc);
+        WriteCellScalarDataVTK("rho", mesh, rho);
+
+        int nRounds = 5;
+        for (int r = 0; r < nRounds; r++)
+            solver.Solve(rho);
+
+        timer.PrintSectionTime("Solving the system");
+
+        vector<double> phi = solver.Potential();
+        vector<Vector3d> field = solver.ElectricField();
+
+        WriteCellScalarDataVTK("phi", mesh, phi);
+        WriteCellVectorDataVTK("electric_field", mesh, field);
+
+        // Analytical solution
+        vector<double> phiA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            phiA[tet->index] = (pow(p.Abs(), 4) - 1) / 20.;
+        }
+        WriteCellScalarDataVTK("phi_analytical", mesh, phiA);
+
+        vector<Vector3d> fieldA(mesh.tets.size());
+        for (auto tet : mesh.tets)
+        {
+            Point p = tet->centroid;
+            fieldA[tet->index][0] = -pow(p.Abs(), 3) / 5. * p[0] / p.Abs();
+            fieldA[tet->index][1] = -pow(p.Abs(), 3) / 5. * p[1] / p.Abs();
+            fieldA[tet->index][2] = -pow(p.Abs(), 3) / 5. * p[2] / p.Abs();
+        }
+        WriteCellVectorDataVTK("electric_field_analytical", mesh, fieldA);
+
+        // Calculate the difference
+        double phiMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+            phiMSE += pow(phi[i] - phiA[i], 2);
+        phiMSE = sqrt(phiMSE / mesh.tets.size());
+        cout << "Phi MSE = " << phiMSE << "\n";
+
+        double fieldMSE = 0;
+        for (int i = 0; i < mesh.tets.size(); i++)
+        {
+            fieldMSE += pow(field[i][0] - fieldA[i][0], 2) +
+                        pow(field[i][1] - fieldA[i][1], 2) +
+                        pow(field[i][2] - fieldA[i][2], 2);
+        }
+        fieldMSE = sqrt(fieldMSE / mesh.tets.size());
+        cout << "Field MSE = " << fieldMSE << "\n";
+
+        results << mesh.AverageCellSize() << " " << phiMSE << " " << fieldMSE << "\n" << flush;
+        cout << "\n\n";
+    }
+}
+
+int main() 
+{
+    RunTest1();
+
+    RunTest2();
+    
+    RunTest3();
 }

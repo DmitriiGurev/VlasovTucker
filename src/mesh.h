@@ -25,6 +25,8 @@ public:
 
     const std::unordered_map<int, std::vector<Face*>>& EntityToFaces() const;
 
+    double AverageCellSize() const;
+
     ~Mesh();
 
 private:

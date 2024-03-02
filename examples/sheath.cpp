@@ -31,8 +31,8 @@ int main()
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{3, 4}, {5, 6}});
 
-    // Scale down to 10 Debye lengths
-    double scaleFactor = 10 * debyeLength;
+    // Scale down to 20 Debye lengths
+    double scaleFactor = 20 * debyeLength;
     mesh.Reconstruct(scaleFactor);
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";

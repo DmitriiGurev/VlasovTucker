@@ -178,10 +178,8 @@ void PoissonSolver::_FillLineCoeffs(vector<Triplet>& coeffs, int i) const
 
 void PoissonSolver::Solve(vector<double> rho)
 {
-    // Make the total charge equal to zero
-    if (!_solutionIsUnique)
-        _MakeNeutral(rho);
-
+    // TODO: Check that the total charge equals 0 in a periodic domain
+    // _MakeNeutral(rho); // (?)
     Eigen::VectorXd rhs(_mesh->tets.size());
     for (int i = 0; i < _mesh->tets.size(); i++)
     {
@@ -366,7 +364,7 @@ Vector3d PoissonSolver::_TetLSG(Tet* tet) const
 
     array<double, 4> adjVal;
     array<Point, 4> dist;
-    
+
     for (int i = 0; i < 4; i++)
     {
         Tet* adjTet = tet->adjTets[i];

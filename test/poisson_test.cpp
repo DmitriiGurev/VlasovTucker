@@ -1,5 +1,5 @@
 #include "poisson.h"
-#include "plasma_parameters.h"
+#include "particle_data.h"
 #include "vtk.h"
 #include "timer.h"
 

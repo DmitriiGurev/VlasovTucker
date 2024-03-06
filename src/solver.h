@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mesh.h"
-#include "plasma_parameters.h"
+#include "particle_data.h"
 #include "poisson.h"
 #include "typedefs.h"
 #include "log.h"
@@ -38,7 +38,7 @@ class Solver
 public:
     Solver(const Mesh* mesh,
            const VelocityGrid* velocityGrid,
-           PlasmaParameters<TensorType>* plasmaParameters);
+           ParticleData<TensorType>* particleData);
 
     void SetFieldBC(int boundaryInd, const FieldBC& bc);
     void SetParticleBC(int boundaryInd, const ParticleBC<TensorType>& bc);
@@ -68,10 +68,9 @@ public:
 private:
     const Mesh* _mesh;
     const VelocityGrid* _vGrid;
+    ParticleData<TensorType>* _pData;
 
     PoissonSolver _poissonSolver;
-
-    PlasmaParameters<TensorType>* _plParams;
 
     std::vector<ParticleBC<TensorType>> _faceParticleBC;
     std::unordered_map<int, double> _wallCharge;

@@ -11,8 +11,6 @@
 
 namespace VlasovTucker
 {
-enum class ParticleType { Electron, Ion, Neutral, Custom };
-
 struct MaxwellPDF
 {
     std::vector<double> physDensity;
@@ -21,10 +19,10 @@ struct MaxwellPDF
 };
 
 template <typename TensorType>
-class PlasmaParameters
+class ParticleData
 {
 public:
-    PlasmaParameters(const Mesh* mesh, const VelocityGrid* vGrid);
+    ParticleData(const Mesh* mesh, const VelocityGrid* vGrid);
 
     void SetMaxwellPDF(const MaxwellPDF& paramsPDF);
 
@@ -36,7 +34,7 @@ public:
     int MaxRank() const;
 
 public:
-    ParticleType species;
+    std::string species;
     double mass;
     double charge;
 

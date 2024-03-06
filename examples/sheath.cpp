@@ -11,7 +11,7 @@ using TensorType = Full;
 
 int main()
 {
-    // 0. Set plasma parameters
+    // 1. Set plasma parameters
     double elTemperature = 1 * electronvolt; // [K]
     double elDensity = 1e17; // [m^-3]
 
@@ -24,7 +24,7 @@ int main()
     double plasmaT = 2 * pi / plasmaFrequency;
     cout << "Characteristic time: " << plasmaT << " [s]\n";
 
-    // 1. Load the mesh
+    // 2. Load the mesh
     string meshFileName = "../data/meshes/rectangle_fine.msh";
     Mesh mesh(meshFileName);
 
@@ -38,18 +38,18 @@ int main()
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
     WriteMeshVTK("mesh", mesh);
 
-    // 2. Create a velocity grid
+    // 3. Create a velocity grid
     // Let PDF(maxV) = 1e-6 PDF(0)
     double maxV = sqrt(-log(1e-6) * 2 * boltzConst * elTemperature / elMass);
     cout << "Characteristic velocity range: (" << -maxV << ", " << maxV << ") [m/s]\n";
 
     VelocityGrid vGrid({25, 7, 7}, {-5 * maxV, -maxV, -maxV}, {5 * maxV, maxV, maxV});
 
-    // 3. Set the initial PDF
-    PlasmaParameters<TensorType> plasmaParams(&mesh, &vGrid);
-    plasmaParams.species = ParticleType::Electron;
-    plasmaParams.mass = elMass;
-    plasmaParams.charge = -elCharge;
+    // 4. Set the initial PDF
+    ParticleData<TensorType> particleData(&mesh, &vGrid);
+    particleData.species = "Electron";
+    particleData.mass = elMass;
+    particleData.charge = -elCharge;
 
     // Maxwell distribution
     MaxwellPDF paramsPDF;
@@ -59,15 +59,15 @@ int main()
     paramsPDF.mostProbableV = {0, 0, 0};
 
     // Tensor compression error
-    plasmaParams.SetCompressionError(1e-6);
+    particleData.SetCompressionError(1e-6);
     
-    plasmaParams.SetMaxwellPDF(paramsPDF);
+    particleData.SetMaxwellPDF(paramsPDF);
 
-    // 4. Initialize the solver
-    Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
+    // 5. Initialize the solver
+    Solver<TensorType> solver(&mesh, &vGrid, &particleData);
 
     // Let the system be initially electroneutral
-    solver.backgroundChargeDensity = elCharge * plasmaParams.Density()[0];
+    solver.backgroundChargeDensity = elCharge * particleData.Density()[0];
 
     // Set boundary conditions
     // Charged plane (Neumann BC)
@@ -93,7 +93,7 @@ int main()
     particleBC2.type = ParticleBCType::Free;
     solver.SetParticleBC(2, particleBC2);
 
-    // 5. Solve
+    // 6. Solve
     double timeStep = 1e-4 * plasmaT;
     int nSteps = 100000;
 

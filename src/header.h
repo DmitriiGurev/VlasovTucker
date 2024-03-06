@@ -2,7 +2,7 @@
 
 #include "mesh.h"
 #include "velocity_grid.h"
-#include "plasma_parameters.h"
+#include "particle_data.h"
 
 #include "full.h"
 #include "tucker.h"

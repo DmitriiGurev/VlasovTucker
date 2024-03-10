@@ -28,7 +28,7 @@ int main()
     VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
     ParticleData<TensorType> particleData(&mesh, &vGrid);
-    particleData.species = "Custom";
+    particleData.species = "custom";
     particleData.mass = 1;
     particleData.charge = 10;
 
@@ -47,5 +47,7 @@ int main()
 
     Solver<TensorType> solver(&mesh, &vGrid, &particleData);
     solver.writeStep = 100;
-    solver.Solve(1e-4, 100000);
+    solver.timeStep = 1e-4;
+    solver.nIterations = 1e5;  
+    solver.Solve();
 }

@@ -13,12 +13,14 @@ int main()
 {
     // 1. Set plasma parameters
     double elTemperature = 1 * electronvolt; // [K]
-    double elDensity = 1e17; // [m^-3]
+    double ionTemperature = 400;             // [K]
+    double density = 1e17;                   // [m^-3]
+    double ionMass = atomicMass;             // [kg]
 
-    double debyeLength = DebyeLength(elTemperature, elDensity, elCharge);
+    double debyeLength = DebyeLength(elTemperature, density, elCharge);
     cout << "Debye length: " << debyeLength << " [m]\n";
 
-    double plasmaFrequency = PlasmaFrequency(elDensity, elCharge, elMass);
+    double plasmaFrequency = PlasmaFrequency(density, elCharge, elMass);
     cout << "Plasma frequency: " << plasmaFrequency << " [rad/s]\n";
 
     double plasmaT = 2 * pi / plasmaFrequency;
@@ -31,72 +33,106 @@ int main()
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{3, 4}, {5, 6}});
 
-    // Scale down to 20 Debye lengths
-    double scaleFactor = 20 * debyeLength;
+    // Scale down to 22 Debye lengths
+    double scaleFactor = 22 * debyeLength;
     mesh.Reconstruct(scaleFactor);
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
     WriteMeshVTK("mesh", mesh);
 
-    // 3. Create a velocity grid
+    // 3. Create the velocity grids
     // Let PDF(maxV) = 1e-6 PDF(0)
-    double maxV = sqrt(-log(1e-6) * 2 * boltzConst * elTemperature / elMass);
-    cout << "Characteristic velocity range: (" << -maxV << ", " << maxV << ") [m/s]\n";
+    double maxVE = sqrt(-log(1e-6) * 2 * boltzConst * elTemperature / elMass);
+    cout << "Characteristic electron velocity range:" <<
+        " (" << -maxVE << ", " << maxVE << ") [m/s]\n";
 
-    VelocityGrid vGrid({25, 7, 7}, {-5 * maxV, -maxV, -maxV}, {5 * maxV, maxV, maxV});
+    VelocityGrid vGridE({50, 5, 5},
+                        {-4 * maxVE, -maxVE, -maxVE},
+                        {4 * maxVE, maxVE, maxVE});
 
-    // 4. Set the initial PDF
-    ParticleData<TensorType> particleData(&mesh, &vGrid);
-    particleData.species = "Electron";
-    particleData.mass = elMass;
-    particleData.charge = -elCharge;
+    double maxVI = sqrt(-log(1e-6) * 2 * boltzConst * ionTemperature / ionMass);
+    cout << "Characteristic ion velocity range:" <<
+        " (" << -maxVI << ", " << maxVI << ") [m/s]\n";
+
+    VelocityGrid vGridI({50, 5, 5},
+                        {-4 * maxVI, -maxVI, -maxVI},
+                        {4 * maxVI, maxVI, maxVI});
+
+
+    // 4. Set the initial PDFs
+    auto rhoFunc = [density](const Point& p) { return density; };
+
+    ParticleData<TensorType> particleDataE(&mesh, &vGridE);
+    particleDataE.species = "electron";
+    particleDataE.mass = elMass;
+    particleDataE.charge = -elCharge;
 
     // Maxwell distribution
-    MaxwellPDF paramsPDF;
-    auto rhoFunc = [elDensity](const Point& p) { return elDensity; };
-    paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
-    paramsPDF.temperature = elTemperature;
-    paramsPDF.mostProbableV = {0, 0, 0};
+    MaxwellPDF maxwellE;
+    maxwellE.physDensity = move(ScalarField(&mesh, rhoFunc));
+    maxwellE.temperature = elTemperature;
+    maxwellE.mostProbableV = {0, 0, 0};
 
     // Tensor compression error
-    particleData.SetCompressionError(1e-6);
-    
-    particleData.SetMaxwellPDF(paramsPDF);
+    particleDataE.SetCompressionError(1e-6);
+    particleDataE.SetMaxwellPDF(maxwellE);
+
+    // Same for the ions
+    ParticleData<TensorType> particleDataI(&mesh, &vGridI);
+    particleDataI.species = "ion";
+    particleDataI.mass = ionMass;
+    particleDataI.charge = elCharge;
+
+    MaxwellPDF maxwellI;
+    maxwellI.physDensity = move(ScalarField(&mesh, rhoFunc));
+    maxwellI.temperature = ionTemperature;
+    maxwellI.mostProbableV = {0, 0, 0};
+
+    particleDataI.SetCompressionError(1e-6);
+    particleDataI.SetMaxwellPDF(maxwellI);
 
     // 5. Initialize the solver
-    Solver<TensorType> solver(&mesh, &vGrid, &particleData);
-
-    // Let the system be initially electroneutral
-    solver.backgroundChargeDensity = elCharge * particleData.Density()[0];
+    Solver<TensorType> solverE(&mesh, &vGridE, &particleDataE);
+    Solver<TensorType> solverI(&mesh, &vGridI, &particleDataI);
 
     // Set boundary conditions
+    // Charging wall (Absorbing BC) 
+    ParticleBC<TensorType> particleBC1;
+    particleBC1.type = ParticleBCType::Absorbing;
+    particleBC1.collectCharge = true;
+    solverE.SetParticleBC(1, particleBC1);
+    solverI.SetParticleBC(1, particleBC1);
+
+    // Free wall (Free BC)
+    ParticleBC<TensorType> particleBC2;
+    particleBC2.type = ParticleBCType::Free;
+    solverE.SetParticleBC(2, particleBC2);
+    solverI.SetParticleBC(2, particleBC2);
+
+    // Field BCs can be set just for one solver
     // Charged plane (Neumann BC)
     FieldBC fieldBC1;
     fieldBC1.type = FieldBCType::ChargedPlane;
+    // Initial boundary charge density
     fieldBC1.chargeDensity = 0;
-    solver.SetFieldBC(1, fieldBC1);
+    solverE.SetFieldBC(1, fieldBC1);
 
     // Zero potential (Dirichlet BC)
     FieldBC fieldBC2;
     fieldBC2.type = FieldBCType::ConstantPotential;
     fieldBC2.potential = 0;
-    solver.SetFieldBC(2, fieldBC2);
-
-    // Charging wall (Absorbing BC) 
-    ParticleBC<TensorType> particleBC1;
-    particleBC1.type = ParticleBCType::Absorbing;
-    particleBC1.collectCharge = true;
-    solver.SetParticleBC(1, particleBC1);
-
-    // Free wall (Free BC)
-    ParticleBC<TensorType> particleBC2;
-    particleBC2.type = ParticleBCType::Free;
-    solver.SetParticleBC(2, particleBC2);
+    solverE.SetFieldBC(2, fieldBC2);
 
     // 6. Solve
-    double timeStep = 1e-4 * plasmaT;
-    int nSteps = 100000;
+    MulticomponentSolver<TensorType> multiSolver(&solverE);
+    multiSolver.AddSolver(&solverI);
 
-    solver.writeStep = 1000;
-    solver.Solve(timeStep, nSteps);
+    multiSolver.timeStep = 1e-4 * plasmaT;
+    multiSolver.stepMultipliers[&solverI] = 10;
+    multiSolver.stepMultipliers[&solverE] = 1;
+
+    multiSolver.nIterations = 1e6;   
+    multiSolver.writeStep = 1e3;
+
+    multiSolver.Solve();
 }

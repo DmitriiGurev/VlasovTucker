@@ -20,7 +20,7 @@ Solver<TensorType>::Solver(const Mesh* mesh,
     _vGrid(velocityGrid),
     _pData(particleData)
 {
-    _log = Log(LogLevel::AllText, "solver_");
+    _log = Log(LogLevel::Console);
 
     // Compute the tensors vNormal and vNormalAbs 
     _PrecomputeNormalTensors();

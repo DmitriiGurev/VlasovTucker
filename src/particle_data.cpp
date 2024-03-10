@@ -35,7 +35,7 @@ void ParticleData<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
     {
         if (paramsPDF.temperature != 0.0)
         {
-            double normConst = pow(mass / (2 * pi * boltzConst * paramsPDF.temperature), 1.5);
+            double normConst = 0;
             for (int i0 = 0; i0 < n0; i0++)
             {
                 for (int i1 = 0; i1 < n1; i1++)
@@ -48,9 +48,20 @@ void ParticleData<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
                             double velJ = _vGrid->At(i0, i1, i2)[j] - paramsPDF.mostProbableV[j];
                             velSquared += velJ * velJ;
                         }
-                        t3d(i0, i1, i2) = paramsPDF.physDensity[tet->index] * normConst *
-                                        exp(-mass * velSquared /
-                                        (2 * boltzConst * paramsPDF.temperature));
+                        t3d(i0, i1, i2) = exp(-mass * velSquared / (2 * boltzConst *
+                            paramsPDF.temperature));
+                        normConst += t3d(i0, i1, i2);
+                    }
+                } 
+            }
+            for (int i0 = 0; i0 < n0; i0++)
+            {
+                for (int i1 = 0; i1 < n1; i1++)
+                {
+                    for (int i2 = 0; i2 < n2; i2++)
+                    {
+                        t3d(i0, i1, i2) *= paramsPDF.physDensity[tet->index] /
+                            (_vGrid->cellVolume * normConst);
                     }
                 } 
             }

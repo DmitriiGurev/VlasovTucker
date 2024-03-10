@@ -21,6 +21,7 @@ add_library(
     ./src/velocity_grid.cpp
     ./src/particle_data.cpp
     ./src/solver.cpp
+    ./src/multicomponent_solver.cpp
     ./src/vtk.cpp
     ./src/full.cpp
     ./src/tucker.cpp

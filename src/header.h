@@ -8,6 +8,7 @@
 #include "tucker.h"
 
 #include "solver.h"
+#include "multicomponent_solver.h"
 
 #include "vtk.h"
 #include "log.h"

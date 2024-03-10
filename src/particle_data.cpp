@@ -93,6 +93,7 @@ vector<double> ParticleData<TensorType>::Density() const
 template <typename TensorType>
 vector<Vector3d> ParticleData<TensorType>::Velocity() const {
     vector<Vector3d> result(_mesh->tets.size());
+    vector<double> density = Density();
 
     // TODO: Do it in parallel
     for (int i = 0; i < _mesh->tets.size(); i++)
@@ -100,10 +101,15 @@ vector<Vector3d> ParticleData<TensorType>::Velocity() const {
         for (int k = 0; k < 3; k++)
         {
             TensorType vPDF = TensorType(_vGrid->v[k]) * pdf[i];
-            result[i][k] = vPDF.Sum() * _vGrid->cellVolume;
+            if (density[i] != 0) {
+                result[i][k] = vPDF.Sum() * _vGrid->cellVolume / density[i];
+            }
+            else
+            {
+                result[i][k] = 0;
+            }
         }
     }
-
     return result;
 }
 

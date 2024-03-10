@@ -34,7 +34,7 @@ public:
     int MaxRank() const;
 
 public:
-    std::string species;
+    std::string species = "";
     double mass;
     double charge;
 

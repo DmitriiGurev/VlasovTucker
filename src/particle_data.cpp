@@ -1,4 +1,4 @@
-#include "plasma_parameters.h"
+#include "particle_data.h"
 #include "full.h"
 #include "tucker.h"
 
@@ -8,11 +8,11 @@ using namespace std;
 
 namespace VlasovTucker
 {
-template class PlasmaParameters<Full>;
-template class PlasmaParameters<Tucker>;
+template class ParticleData<Full>;
+template class ParticleData<Tucker>;
 
 template <typename TensorType>
-PlasmaParameters<TensorType>::PlasmaParameters(const Mesh* mesh, const VelocityGrid* vGrid) :
+ParticleData<TensorType>::ParticleData(const Mesh* mesh, const VelocityGrid* vGrid) :
     _mesh(mesh), _vGrid(vGrid)
 {
     _maxRank = *max_element(_vGrid->nCells.begin(), _vGrid->nCells.end());
@@ -20,7 +20,7 @@ PlasmaParameters<TensorType>::PlasmaParameters(const Mesh* mesh, const VelocityG
 }
 
 template <typename TensorType>
-void PlasmaParameters<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
+void ParticleData<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
 {
     int n0 = _vGrid->nCells[0];
     int n1 = _vGrid->nCells[1];
@@ -35,7 +35,7 @@ void PlasmaParameters<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
     {
         if (paramsPDF.temperature != 0.0)
         {
-            double normConst = pow(mass / (2 * pi * boltzConst * paramsPDF.temperature), 1.5);
+            double normConst = 0;
             for (int i0 = 0; i0 < n0; i0++)
             {
                 for (int i1 = 0; i1 < n1; i1++)
@@ -48,9 +48,20 @@ void PlasmaParameters<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
                             double velJ = _vGrid->At(i0, i1, i2)[j] - paramsPDF.mostProbableV[j];
                             velSquared += velJ * velJ;
                         }
-                        t3d(i0, i1, i2) = paramsPDF.physDensity[tet->index] * normConst *
-                                        exp(-mass * velSquared /
-                                        (2 * boltzConst * paramsPDF.temperature));
+                        t3d(i0, i1, i2) = exp(-mass * velSquared / (2 * boltzConst *
+                            paramsPDF.temperature));
+                        normConst += t3d(i0, i1, i2);
+                    }
+                } 
+            }
+            for (int i0 = 0; i0 < n0; i0++)
+            {
+                for (int i1 = 0; i1 < n1; i1++)
+                {
+                    for (int i2 = 0; i2 < n2; i2++)
+                    {
+                        t3d(i0, i1, i2) *= paramsPDF.physDensity[tet->index] /
+                            (_vGrid->cellVolume * normConst);
                     }
                 } 
             }
@@ -79,7 +90,7 @@ void PlasmaParameters<TensorType>::SetMaxwellPDF(const MaxwellPDF& paramsPDF)
 }
 
 template <typename TensorType>
-vector<double> PlasmaParameters<TensorType>::Density() const
+vector<double> ParticleData<TensorType>::Density() const
 {
     vector<double> result(_mesh->tets.size());
 
@@ -91,8 +102,9 @@ vector<double> PlasmaParameters<TensorType>::Density() const
 }
 
 template <typename TensorType>
-vector<Vector3d> PlasmaParameters<TensorType>::Velocity() const {
+vector<Vector3d> ParticleData<TensorType>::Velocity() const {
     vector<Vector3d> result(_mesh->tets.size());
+    vector<double> density = Density();
 
     // TODO: Do it in parallel
     for (int i = 0; i < _mesh->tets.size(); i++)
@@ -100,27 +112,32 @@ vector<Vector3d> PlasmaParameters<TensorType>::Velocity() const {
         for (int k = 0; k < 3; k++)
         {
             TensorType vPDF = TensorType(_vGrid->v[k]) * pdf[i];
-            result[i][k] = vPDF.Sum() * _vGrid->cellVolume;
+            if (density[i] != 0) {
+                result[i][k] = vPDF.Sum() * _vGrid->cellVolume / density[i];
+            }
+            else
+            {
+                result[i][k] = 0;
+            }
         }
     }
-
     return result;
 }
 
 template <typename TensorType>
-void PlasmaParameters<TensorType>::SetCompressionError(double error)
+void ParticleData<TensorType>::SetCompressionError(double error)
 {
     _comprErr = error;
 }
 
 template <typename TensorType>
-double PlasmaParameters<TensorType>::CompressionError() const
+double ParticleData<TensorType>::CompressionError() const
 {
     return _comprErr;
 }
 
 template <typename TensorType>
-int PlasmaParameters<TensorType>::MaxRank() const
+int ParticleData<TensorType>::MaxRank() const
 {
     return _maxRank;
 }

@@ -11,92 +11,128 @@ using TensorType = Full;
 
 int main()
 {
-    // 0. Set plasma parameters
+    // 1. Set plasma parameters
     double elTemperature = 1 * electronvolt; // [K]
-    double elDensity = 1e17; // [m^-3]
+    double ionTemperature = 400;             // [K]
+    double density = 1e17;                   // [m^-3]
+    double ionMass = atomicMass;             // [kg]
 
-    double debyeLength = DebyeLength(elTemperature, elDensity, elCharge);
+    double debyeLength = DebyeLength(elTemperature, density, elCharge);
     cout << "Debye length: " << debyeLength << " [m]\n";
 
-    double plasmaFrequency = PlasmaFrequency(elDensity, elCharge, elMass);
+    double plasmaFrequency = PlasmaFrequency(density, elCharge, elMass);
     cout << "Plasma frequency: " << plasmaFrequency << " [rad/s]\n";
 
     double plasmaT = 2 * pi / plasmaFrequency;
     cout << "Characteristic time: " << plasmaT << " [s]\n";
 
-    // 1. Load the mesh
+    // 2. Load the mesh
     string meshFileName = "../data/meshes/rectangle_fine.msh";
     Mesh mesh(meshFileName);
 
     mesh.PrintBoundaryLabels();
     mesh.SetPeriodicBounaries({{3, 4}, {5, 6}});
 
-    // Scale down to 20 Debye lengths
-    double scaleFactor = 20 * debyeLength;
+    // Scale down to 22 Debye lengths
+    double scaleFactor = 22 * debyeLength;
     mesh.Reconstruct(scaleFactor);
 
     cout << mesh.faces.size() << " faces, " << mesh.tets.size() << " tets\n";
     WriteMeshVTK("mesh", mesh);
 
-    // 2. Create a velocity grid
+    // 3. Create the velocity grids
     // Let PDF(maxV) = 1e-6 PDF(0)
-    double maxV = sqrt(-log(1e-6) * 2 * boltzConst * elTemperature / elMass);
-    cout << "Characteristic velocity range: (" << -maxV << ", " << maxV << ") [m/s]\n";
+    double maxVE = sqrt(-log(1e-6) * 2 * boltzConst * elTemperature / elMass);
+    cout << "Characteristic electron velocity range:" <<
+        " (" << -maxVE << ", " << maxVE << ") [m/s]\n";
 
-    VelocityGrid vGrid({25, 7, 7}, {-5 * maxV, -maxV, -maxV}, {5 * maxV, maxV, maxV});
+    VelocityGrid vGridE({50, 5, 5},
+                        {-4 * maxVE, -maxVE, -maxVE},
+                        {4 * maxVE, maxVE, maxVE});
 
-    // 3. Set the initial PDF
-    PlasmaParameters<TensorType> plasmaParams(&mesh, &vGrid);
-    plasmaParams.species = ParticleType::Electron;
-    plasmaParams.mass = elMass;
-    plasmaParams.charge = -elCharge;
+    double maxVI = sqrt(-log(1e-6) * 2 * boltzConst * ionTemperature / ionMass);
+    cout << "Characteristic ion velocity range:" <<
+        " (" << -maxVI << ", " << maxVI << ") [m/s]\n";
+
+    VelocityGrid vGridI({50, 5, 5},
+                        {-4 * maxVI, -maxVI, -maxVI},
+                        {4 * maxVI, maxVI, maxVI});
+
+
+    // 4. Set the initial PDFs
+    auto rhoFunc = [density](const Point& p) { return density; };
+
+    ParticleData<TensorType> particleDataE(&mesh, &vGridE);
+    particleDataE.species = "electron";
+    particleDataE.mass = elMass;
+    particleDataE.charge = -elCharge;
 
     // Maxwell distribution
-    MaxwellPDF paramsPDF;
-    auto rhoFunc = [elDensity](const Point& p) { return elDensity; };
-    paramsPDF.physDensity = move(ScalarField(&mesh, rhoFunc));
-    paramsPDF.temperature = elTemperature;
-    paramsPDF.mostProbableV = {0, 0, 0};
+    MaxwellPDF maxwellE;
+    maxwellE.physDensity = move(ScalarField(&mesh, rhoFunc));
+    maxwellE.temperature = elTemperature;
+    maxwellE.mostProbableV = {0, 0, 0};
 
     // Tensor compression error
-    plasmaParams.SetCompressionError(1e-6);
-    
-    plasmaParams.SetMaxwellPDF(paramsPDF);
+    particleDataE.SetCompressionError(1e-6);
+    particleDataE.SetMaxwellPDF(maxwellE);
 
-    // 4. Initialize the solver
-    Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
+    // Same for the ions
+    ParticleData<TensorType> particleDataI(&mesh, &vGridI);
+    particleDataI.species = "ion";
+    particleDataI.mass = ionMass;
+    particleDataI.charge = elCharge;
 
-    // Let the system be initially electroneutral
-    solver.backgroundChargeDensity = elCharge * plasmaParams.Density()[0];
+    MaxwellPDF maxwellI;
+    maxwellI.physDensity = move(ScalarField(&mesh, rhoFunc));
+    maxwellI.temperature = ionTemperature;
+    maxwellI.mostProbableV = {0, 0, 0};
+
+    particleDataI.SetCompressionError(1e-6);
+    particleDataI.SetMaxwellPDF(maxwellI);
+
+    // 5. Initialize the solver
+    Solver<TensorType> solverE(&mesh, &vGridE, &particleDataE);
+    Solver<TensorType> solverI(&mesh, &vGridI, &particleDataI);
 
     // Set boundary conditions
+    // Charging wall (Absorbing BC) 
+    ParticleBC<TensorType> particleBC1;
+    particleBC1.type = ParticleBCType::Absorbing;
+    particleBC1.collectCharge = true;
+    solverE.SetParticleBC(1, particleBC1);
+    solverI.SetParticleBC(1, particleBC1);
+
+    // Free wall (Free BC)
+    ParticleBC<TensorType> particleBC2;
+    particleBC2.type = ParticleBCType::Free;
+    solverE.SetParticleBC(2, particleBC2);
+    solverI.SetParticleBC(2, particleBC2);
+
+    // Field BCs can be set just for one solver
     // Charged plane (Neumann BC)
     FieldBC fieldBC1;
     fieldBC1.type = FieldBCType::ChargedPlane;
+    // Initial boundary charge density
     fieldBC1.chargeDensity = 0;
-    solver.SetFieldBC(1, fieldBC1);
+    solverE.SetFieldBC(1, fieldBC1);
 
     // Zero potential (Dirichlet BC)
     FieldBC fieldBC2;
     fieldBC2.type = FieldBCType::ConstantPotential;
     fieldBC2.potential = 0;
-    solver.SetFieldBC(2, fieldBC2);
+    solverE.SetFieldBC(2, fieldBC2);
 
-    // Charging wall (Absorbing BC) 
-    ParticleBC<TensorType> particleBC1;
-    particleBC1.type = ParticleBCType::Absorbing;
-    particleBC1.collectCharge = true;
-    solver.SetParticleBC(1, particleBC1);
+    // 6. Solve
+    MulticomponentSolver<TensorType> multiSolver(&solverE);
+    multiSolver.AddSolver(&solverI);
 
-    // Free wall (Free BC)
-    ParticleBC<TensorType> particleBC2;
-    particleBC2.type = ParticleBCType::Free;
-    solver.SetParticleBC(2, particleBC2);
+    multiSolver.timeStep = 1e-4 * plasmaT;
+    multiSolver.stepMultipliers[&solverI] = 10;
+    multiSolver.stepMultipliers[&solverE] = 1;
 
-    // 5. Solve
-    double timeStep = 1e-4 * plasmaT;
-    int nSteps = 100000;
+    multiSolver.nIterations = 1e6;   
+    multiSolver.writeStep = 1e3;
 
-    solver.writeStep = 1000;
-    solver.Solve(timeStep, nSteps);
+    multiSolver.Solve();
 }

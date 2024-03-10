@@ -19,8 +19,9 @@ add_library(
     ./src/mesh.cpp
     ./src/poisson.cpp
     ./src/velocity_grid.cpp
-    ./src/plasma_parameters.cpp
+    ./src/particle_data.cpp
     ./src/solver.cpp
+    ./src/multicomponent_solver.cpp
     ./src/vtk.cpp
     ./src/full.cpp
     ./src/tucker.cpp

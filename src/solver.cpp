@@ -15,12 +15,12 @@ template class Solver<Tucker>;
 template <typename TensorType>
 Solver<TensorType>::Solver(const Mesh* mesh,
                            const VelocityGrid* velocityGrid,
-                           PlasmaParameters<TensorType>* plasmaParameters) :
+                           ParticleData<TensorType>* particleData) :
     _mesh(mesh),
     _vGrid(velocityGrid),
-    _plParams(plasmaParameters)
+    _pData(particleData)
 {
-    _log = Log(LogLevel::AllText, "solver_");
+    _log = Log(LogLevel::Console);
 
     // Compute the tensors vNormal and vNormalAbs 
     _PrecomputeNormalTensors();
@@ -77,19 +77,15 @@ void Solver<TensorType>::SetSparseSolverType(SparseSolverType type)
 }
 
 template <typename TensorType>
-void Solver<TensorType>::Solve(double timeStep, int nIterations)
+void Solver<TensorType>::Solve()
 {
     // Calculate the area of absorbing walls, if any, and set the collected charge to zero
     _InitializeWallCharge();
 
     _log << "Initialize the Poisson solver\n";
-    Timer poissonTimer;
+    Timer timer;
     _poissonSolver.Initialize();
-    poissonTimer.PrintSectionTime("Poisson solver initialization");
-
-    // Get the tensor compression parameters
-    double comprErr = _plParams->CompressionError();
-    double maxRank = _plParams->MaxRank();
+    timer.PrintSectionTime("Poisson solver initialization");
 
     _log << "Start the main loop\n";
     for (int iteration = 0; iteration < nIterations; iteration++)
@@ -97,114 +93,29 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
         _log << "\n" << "Iteration #" << iteration << "\n";
         _log << "Time: " << iteration * timeStep << "\n";
         
-        Timer timer;
-
         _log << Indent(1) << "Compute the electric field\n";
         // Calculate the charge density
-        vector<double> rho = _plParams->Density();
-        for (int i = 0; i < rho.size(); i++)
+        _rho = _pData->Density();
+        for (int i = 0; i < _rho.size(); i++)
         {
-            rho[i] *= _plParams->charge;
+            _rho[i] *= _pData->charge;
             // Add the background charge
-            rho[i] += backgroundChargeDensity;
+            if (!backgroundChargeDensity.empty())
+                _rho[i] += backgroundChargeDensity[i];
         }
 
         // Solve the Poisson equation
-        _poissonSolver.Solve(rho);
-        vector<double> phi = _poissonSolver.Potential();
-        vector<Vector3d> field = _poissonSolver.ElectricField();
+        _poissonSolver.Solve(_rho);
+        _phi = _poissonSolver.Potential();
+        _field = _poissonSolver.ElectricField();
 
-        timer.PrintSectionTime(Indent(2) + "Done");
+        timer.PrintSectionTime(Indent(1) + "Done");
 
-        _log << Indent(1) << "Compute the right-hand side\n";
-        // Initialize a zero RHS
-        vector<TensorType> rhs;
-        for (auto tet : _mesh->tets)
-        {
-            Tensor3d zero(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-            zero.setZero();
-            TensorType tensor(zero);
-            rhs.push_back(tensor);
-        }
-
-        _log << Indent(2) << "Boltzmann part\n";
-        #pragma omp parallel for 
-        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        {
-            Tet* tet = _mesh->tets[tetInd];
-            for (int f = 0; f < 4; f++)
-            {
-                Face* face = tet->faces[f];
-                const auto& bc = _faceParticleBC[face->index];
-                TensorType flux = _Flux(tet, f, bc.type);
-                rhs[tetInd] -= face->area / tet->volume * flux;
-
-                // Update the charge of absorbing planes
-                if (bc.type == ParticleBCType::Absorbing && bc.collectCharge)
-                {
-                    double particlesAbsorbed = timeStep * face->area * flux.Sum() *
-                        _vGrid->cellVolume;
-
-                    #pragma omp critical
-                    _wallCharge[face->entity] += _plParams->charge * particlesAbsorbed;
-                        
-                }
-
-                // Recompress the RHS tensor
-                rhs[tetInd].Compress(comprErr, maxRank);
-            }
-        }
-
-        timer.PrintSectionTime(Indent(2) + "Done");
-
-        _log << Indent(2) << "Vlasov part\n";
-        #pragma omp parallel for 
-        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        {
-            Tet* tet = _mesh->tets[tetInd];
-            for (int k = 0; k < 3; k++)
-            {
-                double electricField = field[tetInd][k] + externalField[k];
-                double forceComponent = (_plParams->charge / _plParams->mass) * electricField;
-                rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k);
-            }
-
-            // Recompress the RHS tensor
-            rhs[tetInd].Compress(comprErr, maxRank);
-        }
-        
-        timer.PrintSectionTime(Indent(2) + "Done");
-
-        _log << Indent(1) << "Time integration\n";
-
-        #pragma omp parallel for 
-        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        {
-            _plParams->pdf[tetInd] += timeStep * rhs[tetInd];
-
-            // Recompress the PDF
-            _plParams->pdf[tetInd].Compress(comprErr, maxRank);
-        }
-
-        timer.PrintSectionTime(Indent(2) + "Done");
+        _log << Indent(1) << "Update the PDF\n";
+        _UpdatePDF();
+        timer.PrintSectionTime(Indent(1) + "Done");
 
         _log << Indent(1) << "Update the boundary conditions\n";
-        // If a tetrahedron has a face with the Source boundary condition, set the source
-        // PDF in this tetrahedron
-        #pragma omp parallel for
-        for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
-        {
-            for (int f = 0; f < 4; f++)
-            {
-                Face* face = _mesh->tets[tetInd]->faces[f];
-                if (_faceParticleBC[face->index].type == ParticleBCType::Source)
-                {
-                    _plParams->pdf[tetInd] = _faceParticleBC[face->index].sourcePDF;
-                    break;
-                }
-            }
-        }
-
         // Set the updated Neumann condition on the absorbing boundaries 
         for (auto pair : _wallCharge)
         {
@@ -227,38 +138,120 @@ void Solver<TensorType>::Solve(double timeStep, int nIterations)
 }
 
 template <typename TensorType>
+void Solver<TensorType>::_UpdatePDF()
+{
+    // Get the tensor compression parameters
+    double comprErr = _pData->CompressionError();
+    double maxRank = _pData->MaxRank();
+
+    _log << Indent(2) << "Compute the right-hand side\n";
+    // Initialize a zero RHS
+    vector<TensorType> rhs;
+    for (auto tet : _mesh->tets)
+    {
+        Tensor3d zero(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+        zero.setZero();
+        TensorType tensor(zero);
+        rhs.push_back(tensor);
+    }
+
+    _log << Indent(3) << "Boltzmann part\n";
+    #pragma omp parallel for 
+    for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+    {
+        Tet* tet = _mesh->tets[tetInd];
+        for (int f = 0; f < 4; f++)
+        {
+            Face* face = tet->faces[f];
+            const auto& bc = _faceParticleBC[face->index];
+            TensorType flux = _Flux(tet, f, bc.type);
+            rhs[tetInd] -= face->area / tet->volume * flux;
+
+            // Update the charge of absorbing planes
+            if (bc.type == ParticleBCType::Absorbing && bc.collectCharge)
+            {
+                double particlesAbsorbed = timeStep * face->area * flux.Sum() *
+                    _vGrid->cellVolume;
+
+                #pragma omp critical
+                _wallCharge[face->entity] += _pData->charge * particlesAbsorbed;
+                    
+            }
+
+            // Recompress the RHS tensor
+            rhs[tetInd].Compress(comprErr, maxRank);
+        }
+    }
+
+    _log << Indent(3) << "Vlasov part\n";
+    #pragma omp parallel for 
+    for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+    {
+        Tet* tet = _mesh->tets[tetInd];
+        for (int k = 0; k < 3; k++)
+        {
+            double electricField = _field[tetInd][k] + externalField[k];
+            double forceComponent = (_pData->charge / _pData->mass) * electricField;
+            rhs[tetInd] -= forceComponent * _PDFDerivative(tet, k);
+        }
+
+        // Recompress the RHS tensor
+        rhs[tetInd].Compress(comprErr, maxRank);
+    }
+
+    _log << Indent(2) << "Time integration\n";
+
+    #pragma omp parallel for 
+    for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+    {
+        _pData->pdf[tetInd] += timeStep * rhs[tetInd];
+
+        // Recompress the PDF
+        _pData->pdf[tetInd].Compress(comprErr, maxRank);
+    }
+}
+
+template <typename TensorType>
 void Solver<TensorType>::_WriteResults(int iteration)
 {
+    _log << "Particle species: " << _pData->species << "\n";
+
     // Print information about tensors
     double averageTensorSize = 0;
     for (int i = 0; i < _mesh->tets.size(); i++)
-        averageTensorSize += _plParams->pdf[i].Size();
+        averageTensorSize += _pData->pdf[i].Size();
     averageTensorSize /= (double)_mesh->tets.size();
     _log << Indent(1) << "Average PDF size = " << averageTensorSize << "\n";
     _log << Indent(1) << "(Uncompressed: " << _vGrid->nCellsTotal << ")\n";
 
+    string prefix = "solution/";
     int fileNumber = iteration / writeStep;
+    string postfix = "_" + to_string(fileNumber);
 
     // Write the density
-    string densityFile = "solution/density/density_" + to_string(fileNumber);
-    WriteCellScalarDataVTK(densityFile, *_mesh, _plParams->Density());
+    string densityFile = prefix + "density/density_" + _pData->species + postfix;
+    WriteCellScalarDataVTK(densityFile, *_mesh, _pData->Density());
 
     // Write the average velocity
-    string velocityFile = "solution/velocity/velocity_" + to_string(fileNumber);
-    WriteCellVectorDataVTK(velocityFile, *_mesh, _plParams->Velocity());
-
-    // Write the electric potential
-    string phiFile = "solution/phi/phi_" + to_string(fileNumber);
-    WriteCellScalarDataVTK(phiFile, *_mesh, _poissonSolver.Potential());
-
-    // Write the electric field
-    string fieldFile = "solution/field/e_" + to_string(fileNumber);
-    WriteCellVectorDataVTK(fieldFile, *_mesh, _poissonSolver.ElectricField());
+    string velocityFile = prefix + "velocity/velocity_" + _pData->species + postfix;
+    WriteCellVectorDataVTK(velocityFile, *_mesh, _pData->Velocity());
 
     // Write the PDF
     int tetInd = _mesh->tets.size() / 2;
-    string distrFile = "solution/distribution/distribution_" + to_string(fileNumber);
-    WriteDistributionVTK(distrFile, *_vGrid, _plParams->pdf[tetInd].Reconstructed());
+    string distrFile = prefix + "distribution/distribution_" + _pData->species + postfix;
+    WriteDistributionVTK(distrFile, *_vGrid, _pData->pdf[tetInd].Reconstructed());
+
+    // Write the charge density
+    string cDensityFile = prefix + "charge_density/charge_density_" + postfix;
+    WriteCellScalarDataVTK(cDensityFile, *_mesh, _rho);
+
+    // Write the electric potential
+    string phiFile = prefix + "phi/phi_" + postfix;
+    WriteCellScalarDataVTK(phiFile, *_mesh, _phi);
+
+    // Write the electric field
+    string fieldFile = prefix + "field/e_" + postfix;
+    WriteCellVectorDataVTK(fieldFile, *_mesh, _field);
 }
 
 template <typename TensorType>
@@ -285,8 +278,8 @@ void Solver<TensorType>::_PrecomputeNormalTensors()
             _vNormal[tetInd][f] = TensorType(vNormal);
             _vNormalAbs[tetInd][f] = TensorType(vNormalAbs);
 
-            _vNormal[tetInd][f].Compress(_plParams->CompressionError());
-            _vNormalAbs[tetInd][f].Compress(_plParams->CompressionError(), 6);
+            _vNormal[tetInd][f].Compress(_pData->CompressionError());
+            _vNormalAbs[tetInd][f].Compress(_pData->CompressionError(), 6);
 
             reduction += vNormal.size() / (double)_vNormal[tetInd][f].Size();
             absReduction += vNormalAbs.size() / (double)_vNormalAbs[tetInd][f].Size();
@@ -329,24 +322,24 @@ TensorType Solver<TensorType>::_Flux(const Tet* tet, int f, ParticleBCType bcTyp
 
     if (bcType == ParticleBCType::NonBoundary || bcType == ParticleBCType::Periodic)
     {
-        flux = 0.5 * (_vNormal[tetInd][f] * (_plParams->pdf[adjTetInd] +
-            _plParams->pdf[tetInd]) - _vNormalAbs[tetInd][f] *
-            (_plParams->pdf[adjTetInd] - _plParams->pdf[tetInd]));
+        flux = 0.5 * (_vNormal[tetInd][f] * (_pData->pdf[adjTetInd] +
+            _pData->pdf[tetInd]) - _vNormalAbs[tetInd][f] *
+            (_pData->pdf[adjTetInd] - _pData->pdf[tetInd]));
     }
     else if (bcType == ParticleBCType::Absorbing)
     {
-        flux = 0.5 * (_vNormal[tetInd][f] * _plParams->pdf[tetInd] +
-            _vNormalAbs[tetInd][f] * _plParams->pdf[tetInd]);
+        flux = 0.5 * (_vNormal[tetInd][f] * _pData->pdf[tetInd] +
+            _vNormalAbs[tetInd][f] * _pData->pdf[tetInd]);
     }
     else if (bcType == ParticleBCType::Source)
     {
-        Tensor3d zero(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
-        zero.setZero();
-        flux = TensorType(zero);
+        flux = 0.5 * (_vNormal[tetInd][f] * (_faceParticleBC[face->index].sourcePDF +
+            _pData->pdf[tetInd]) - _vNormalAbs[tetInd][f] *
+            (_faceParticleBC[face->index].sourcePDF - _pData->pdf[tetInd]));
     }
     else if (bcType == ParticleBCType::Free)
     {
-        flux = _vNormal[tetInd][f] * _plParams->pdf[tetInd];
+        flux = _vNormal[tetInd][f] * _pData->pdf[tetInd];
     }
 
     return flux;
@@ -357,7 +350,7 @@ Tucker Solver<Tucker>::_PDFDerivative(const Tet* tet, int ind) const
 {
     int tetInd = tet->index;
  
-    Tucker pdfCompr(_plParams->pdf[tetInd]);
+    Tucker pdfCompr(_pData->pdf[tetInd]);
 
     auto core = pdfCompr.Core();
     auto u = pdfCompr.U();
@@ -401,8 +394,8 @@ Full Solver<Full>::_PDFDerivative(const Tet* tet, int ind) const
                 }
 
                 pdfDer(i[0], i[1], i[2]) = (
-                    _plParams->pdf[tetInd](iPlus[0], iPlus[1], iPlus[2]) - 
-                    _plParams->pdf[tetInd](iMinus[0], iMinus[1], iMinus[2])
+                    _pData->pdf[tetInd](iPlus[0], iPlus[1], iPlus[2]) - 
+                    _pData->pdf[tetInd](iMinus[0], iMinus[1], iMinus[2])
                     ) / (2 * _vGrid->step[ind]);
             }
         }

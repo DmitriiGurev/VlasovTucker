@@ -27,10 +27,10 @@ int main()
 
     VelocityGrid vGrid({11, 11, 11}, {-3, -0.1, -0.1}, {3, 0.1, 0.1});
 
-    PlasmaParameters<TensorType> plasmaParams(&mesh, &vGrid);
-    plasmaParams.species = ParticleType::Custom;
-    plasmaParams.mass = 1;
-    plasmaParams.charge = 10;
+    ParticleData<TensorType> particleData(&mesh, &vGrid);
+    particleData.species = "custom";
+    particleData.mass = 1;
+    particleData.charge = 10;
 
     MaxwellPDF paramsPDF;
     auto rhoFunc = [](const Point& p) { return 10 + 0.2 * sin(1 * p[0] * (2 * pi)); };
@@ -38,14 +38,16 @@ int main()
     paramsPDF.temperature = 0;
     paramsPDF.mostProbableV = {0, 0, 0};
 
-    plasmaParams.SetCompressionError(1e-6);
-    plasmaParams.SetMaxwellPDF(paramsPDF);
+    particleData.SetCompressionError(1e-6);
+    particleData.SetMaxwellPDF(paramsPDF);
 
     WriteDistributionVTK("initial_distribution", vGrid,
-        plasmaParams.pdf[mesh.tets.size() / 2].Reconstructed());
-    WriteCellScalarDataVTK("initial_density", mesh, plasmaParams.Density());
+        particleData.pdf[mesh.tets.size() / 2].Reconstructed());
+    WriteCellScalarDataVTK("initial_density", mesh, particleData.Density());
 
-    Solver<TensorType> solver(&mesh, &vGrid, &plasmaParams);
+    Solver<TensorType> solver(&mesh, &vGrid, &particleData);
     solver.writeStep = 100;
-    solver.Solve(1e-4, 100000);
+    solver.timeStep = 1e-4;
+    solver.nIterations = 1e5;  
+    solver.Solve();
 }

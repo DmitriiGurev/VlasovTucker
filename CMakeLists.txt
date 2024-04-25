@@ -3,8 +3,13 @@ cmake_minimum_required(VERSION 3.10)
 project(VlasovTucker)
 
 # add_compile_options(-O3 -DNDEBUG -fno-math-errno -march=native)
-add_compile_options(-O3 -fno-math-errno -march=native)
-add_compile_options(-mincoming-stack-boundary=2)
+add_compile_options(-O3 -DNDEBUG -fno-math-errno -march=native -fopenmp)
+# add_compile_options(-O3 -march=native -fopenmp)
+# add_compile_options(-mincoming-stack-boundary=2)
+
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
 
 include_directories(
     ./include

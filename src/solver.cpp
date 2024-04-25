@@ -87,6 +87,9 @@ void Solver<TensorType>::Solve()
     _poissonSolver.Initialize();
     timer.PrintSectionTime("Poisson solver initialization");
 
+    ofstream energyStream("energy.txt");
+    ofstream maxEnergyStream("max_energy.txt");
+
     _log << "Start the main loop\n";
     for (int iteration = 0; iteration < nIterations; iteration++)
     {
@@ -108,6 +111,37 @@ void Solver<TensorType>::Solve()
         _poissonSolver.Solve(_rho);
         _phi = _poissonSolver.Potential();
         _field = _poissonSolver.ElectricField();
+
+        // Write the field energy
+        if (iteration % 1 == 0)
+        {
+            double maxEnergy = 0;
+            double energy = 0;
+            for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
+            {
+                Tet* tet = _mesh->tets[tetInd];
+                Vector3d field = _field[tetInd];
+                double eSquared = pow(field[0], 2) + pow(field[1], 2) + pow(field[2], 2);
+                energy += 0.5 * tet->volume * epsilon0 * eSquared;
+
+                if (sqrt(eSquared) > maxEnergy)
+                    maxEnergy = sqrt(eSquared);
+            }
+            energyStream << iteration * timeStep << " " << energy << "\n" << flush;
+            maxEnergyStream << iteration * timeStep << " " << maxEnergy << "\n" << flush;
+            cout << "Energy: " << energy << "\n";
+        }
+
+        // Write the PDF
+        if (iteration % 10 == 0)
+        {
+            ofstream pdfStream("pdf.txt");
+            for (int i = 0; i < _vGrid->nCells[0]; i++) {
+                pdfStream << _vGrid->At(i, _vGrid->nCells[1] / 2, _vGrid->nCells[2] / 2)[0] << " " <<
+                    _pData->pdf[_mesh->tets.size() / 2](i, _vGrid->nCells[1] / 2, _vGrid->nCells[2] / 2)
+                    << "\n" << flush;
+            }
+        }
 
         timer.PrintSectionTime(Indent(1) + "Done");
 
@@ -156,7 +190,7 @@ void Solver<TensorType>::_UpdatePDF()
     }
 
     _log << Indent(3) << "Boltzmann part\n";
-    #pragma omp parallel for 
+    #pragma omp parallel for
     for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd++)
     {
         Tet* tet = _mesh->tets[tetInd];
@@ -175,7 +209,6 @@ void Solver<TensorType>::_UpdatePDF()
 
                 #pragma omp critical
                 _wallCharge[face->entity] += _pData->charge * particlesAbsorbed;
-                    
             }
 
             // Recompress the RHS tensor
@@ -216,6 +249,15 @@ void Solver<TensorType>::_WriteResults(int iteration)
 {
     _log << "Particle species: " << _pData->species << "\n";
 
+    // vector<Tucker> compressedTensors;
+    // vector<double> tensorSizes;
+
+    // for (int i = 0; i < _mesh->tets.size(); i++) {
+    //     Tucker tucker(_pData->pdf[i].Reconstructed());
+    //     tucker.Compress(_pData->CompressionError(), _pData->MaxRank());
+    //     tensorSizes.push_back(tucker.Size());
+    // }
+
     // Print information about tensors
     double averageTensorSize = 0;
     for (int i = 0; i < _mesh->tets.size(); i++)
@@ -228,30 +270,46 @@ void Solver<TensorType>::_WriteResults(int iteration)
     int fileNumber = iteration / writeStep;
     string postfix = "_" + to_string(fileNumber);
 
-    // Write the density
-    string densityFile = prefix + "density/density_" + _pData->species + postfix;
-    WriteCellScalarDataVTK(densityFile, *_mesh, _pData->Density());
+    // Write the distribution of tensor size
+    // string sizesFile = prefix + "tensor_sizes/sizes" + postfix;
+    // // WriteCellScalarDataVTK(sizesFile, *_mesh, tensorSizes);
 
-    // Write the average velocity
-    string velocityFile = prefix + "velocity/velocity_" + _pData->species + postfix;
-    WriteCellVectorDataVTK(velocityFile, *_mesh, _pData->Velocity());
+    string pdfFile = prefix + "pdf_x_vx/pdf" + postfix;
+    ofstream pdfStream(pdfFile + ".txt");
+    for (int tetInd = 0; tetInd < _mesh->tets.size(); tetInd += 5)
+    {
+        for (int i = 0; i < _vGrid->nCells[0]; i++) {
+            pdfStream << _mesh->tets[tetInd]->centroid[0] << " "
+                <<_vGrid->At(i, _vGrid->nCells[1] / 2, _vGrid->nCells[2] / 2)[0] << " " <<
+                _pData->pdf[tetInd](i, _vGrid->nCells[1] / 2, _vGrid->nCells[2] / 2)
+                << "\n" << flush;
+        }
+    }
 
-    // Write the PDF
-    int tetInd = _mesh->tets.size() / 2;
-    string distrFile = prefix + "distribution/distribution_" + _pData->species + postfix;
-    WriteDistributionVTK(distrFile, *_vGrid, _pData->pdf[tetInd].Reconstructed());
+    // // Write the density
+    // string densityFile = prefix + "density/density_" + _pData->species + postfix;
+    // WriteCellScalarDataVTK(densityFile, *_mesh, _pData->Density());
 
-    // Write the charge density
-    string cDensityFile = prefix + "charge_density/charge_density_" + postfix;
-    WriteCellScalarDataVTK(cDensityFile, *_mesh, _rho);
+    // // Write the average velocity
+    // string velocityFile = prefix + "velocity/velocity_" + _pData->species + postfix;
+    // WriteCellVectorDataVTK(velocityFile, *_mesh, _pData->Velocity());
 
-    // Write the electric potential
-    string phiFile = prefix + "phi/phi_" + postfix;
-    WriteCellScalarDataVTK(phiFile, *_mesh, _phi);
+    // // Write the PDF
+    // int tetInd = _mesh->tets.size() / 2;
+    // string distrFile = prefix + "distribution/distribution_" + _pData->species + postfix;
+    // WriteDistributionVTK(distrFile, *_vGrid, _pData->pdf[tetInd].Reconstructed());
 
-    // Write the electric field
-    string fieldFile = prefix + "field/e_" + postfix;
-    WriteCellVectorDataVTK(fieldFile, *_mesh, _field);
+    // // Write the charge density
+    // string cDensityFile = prefix + "charge_density/charge_density_" + postfix;
+    // WriteCellScalarDataVTK(cDensityFile, *_mesh, _rho);
+
+    // // Write the electric potential
+    // string phiFile = prefix + "phi/phi_" + postfix;
+    // WriteCellScalarDataVTK(phiFile, *_mesh, _phi);
+
+    // // Write the electric field
+    // string fieldFile = prefix + "field/e_" + postfix;
+    // WriteCellVectorDataVTK(fieldFile, *_mesh, _field);
 }
 
 template <typename TensorType>
@@ -366,6 +424,12 @@ Full Solver<Full>::_PDFDerivative(const Tet* tet, int ind) const
     int tetInd = tet->index;
 
     Tensor3d pdfDer(_vGrid->nCells[0], _vGrid->nCells[1], _vGrid->nCells[2]);
+
+    if (_vGrid->nCells[ind] == 1)
+    {
+        pdfDer.setZero();
+        return Full(pdfDer);
+    }
 
     array<int, 3> i;
     for (i[0] = 0; i[0] < _vGrid->nCells[0]; i[0]++)

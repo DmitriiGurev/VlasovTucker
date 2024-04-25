@@ -12,7 +12,16 @@ VelocityGrid::VelocityGrid(array<int, 3> nCells, Vector3d minV, Vector3d maxV) :
     nCellsTotal = nCells[0] * nCells[1] * nCells[2];
 
     for (int j = 0; j < 3; j++)
-        step[j] = (maxV[j] - minV[j]) / (nCells[j] - 1);
+    {
+        if (nCells[j] == 1)
+        {
+            step[j] = maxV[j] - minV[j];
+        }
+        else
+        {
+            step[j] = (maxV[j] - minV[j]) / (nCells[j] - 1);
+        }
+    }   
 
     cellVolume = step[0] * step[1] * step[2];
 
@@ -38,6 +47,10 @@ VelocityGrid::VelocityGrid(array<int, 3> nCells, Vector3d minV, Vector3d maxV) :
     for (int j = 0; j < 3; j++)
     {
         d[j] = Eigen::MatrixXd::Zero(nCells[j], nCells[j]);
+
+        if (nCells[j] == 1)
+            continue;
+
         d[j](0, 1) = 1;
         d[j](0, nCells[j] - 1) = 0;
         for (int i = 1; i < nCells[j] - 1; i++)
@@ -54,8 +67,20 @@ VelocityGrid::VelocityGrid(array<int, 3> nCells, Vector3d minV, Vector3d maxV) :
 
 Vector3d VelocityGrid::At(int i0, int i1, int i2) const
 {
-    return {minV[0] + i0 * step[0],
-            minV[1] + i1 * step[1],
-            minV[2] + i2 * step[2]};
+    Vector3d vel;
+    array<int, 3> ind = {i0, i1, i2};
+    for (int i = 0; i < 3; i++)
+    {
+        if (nCells[i] == 1)
+        {
+            vel[i] = (maxV[i] + minV[i]) / 2.;
+        }
+        else
+        {
+            vel[i] = minV[i] + ind[i] * step[i];
+        }
+    }
+
+    return vel;
 }
 }

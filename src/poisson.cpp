@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cassert>
+#include <limits>
 
 using namespace std;
 
@@ -179,7 +180,9 @@ void PoissonSolver::_FillLineCoeffs(vector<Triplet>& coeffs, int i) const
 void PoissonSolver::Solve(vector<double> rho)
 {
     // TODO: Check that the total charge equals 0 in a periodic domain
-    // _MakeNeutral(rho); // (?)
+    // if (makeNeutral)
+        _MakeNeutral(rho); // (?)
+
     Eigen::VectorXd rhs(_mesh->tets.size());
     for (int i = 0; i < _mesh->tets.size(); i++)
     {
@@ -191,7 +194,7 @@ void PoissonSolver::Solve(vector<double> rho)
 
     if (_gradient.empty())
     {
-        cout << Indent(2) << "Calculate the initial approximation of the gradient\n";
+        cout << Indent(1) << "Calculate the initial approximation of the gradient\n";
 
         // Solve without correction
         _solution = EigenVectorToStdVector(_solver.Solve(rhs));

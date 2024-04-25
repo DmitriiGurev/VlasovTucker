@@ -1,5 +1,7 @@
 #include "mesh.h"
 
+#include "timer.h"
+
 #include <cassert>
 #include <map>
 #include <algorithm>
@@ -93,21 +95,28 @@ double Mesh::AverageCellSize() const
 
 void Mesh::Reconstruct(double scaleFactor)
 {
+    Timer timer;
+
     // Fill the vector of nodes
     _ExtractPoints(scaleFactor);
+    timer.PrintSectionTime("_ExtractPoints");
 
     // Fill the vectors of tetrahedra and faces
     _ExtractTetsAndFaces();
+    timer.PrintSectionTime("_ExtractTetsAndFaces");
 
     // Scan the boundary faces (.msh does not contain non-boundary faces since they are not 
     // assigned to any physical group)
     _LabelBoundaryFaces();
+    timer.PrintSectionTime("_LabelBoundaryFaces");
 
     // Fill the tet-tet adjacency information
     _FillAdjacencyInfo();
+    timer.PrintSectionTime("_FillAdjacencyInfo");
 
     // Connect the tetrahedra adjacent to the periodic boundaries (if any)
     _ConfigurePeriodicity();
+    timer.PrintSectionTime("_ConfigurePeriodicity");
 }
 
 void Mesh::_ExtractPoints(double scaleFactor)
@@ -207,8 +216,11 @@ void Mesh::_LabelBoundaryFaces()
 
 void Mesh::_FillAdjacencyInfo()
 {
-    for(auto face : faces)
+    #pragma omp parallel for
+    for (int i = 0; i < faces.size(); i++)
     {
+        Face* face = faces[i];
+
         Point* p0 = face->points[0];
         Point* p1 = face->points[1];
         Point* p2 = face->points[2];
